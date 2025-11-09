@@ -3,9 +3,9 @@
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
-import type { User, Offer, UserGameOffer } from '@/lib/types';
+import type { User, Offer, UserGameOffer, WithId } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, useUser, useDoc } from '@/firebase';
-import { collection, doc, getDocs, query, where, runTransaction, updateDoc, collectionGroup } from 'firebase/firestore';
+import { collection, doc, getDocs, query, where, runTransaction, updateDoc, collectionGroup, getDoc } from 'firebase/firestore';
 import { CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -62,18 +62,60 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
   }, [firestore, isCurrentUserAdmin]);
   const { data: offers, isLoading: offersLoading, error: offersError } = useCollection<Offer>(offersQuery);
 
-  const pendingOrdersQuery = useMemoFirebase(() => {
-    if (firestore && isCurrentUserAdmin) {
-      return query(
-        collectionGroup(firestore, 'userGameOffers'),
-        where('status', '==', 'pending')
-      );
-    }
-    return null;
-  }, [firestore, isCurrentUserAdmin]);
-
-  const { data: pendingOrders, isLoading: ordersLoading } = useCollection<UserGameOffer>(pendingOrdersQuery);
   
+  const [pendingOrders, setPendingOrders] = useState<WithId<UserGameOffer>[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchPendingOrders = async () => {
+      if (!firestore || !isCurrentUserAdmin || !users) {
+        if(!isCurrentUserAdmin) setOrdersLoading(false);
+        return;
+      }
+
+      setOrdersLoading(true);
+      try {
+        const allPendingOrders: WithId<UserGameOffer>[] = [];
+
+        // Create a batch of promises to fetch pending orders for all users
+        const promises = users.map(async (user) => {
+          const userOrdersRef = collection(firestore, 'users', user.id, 'userGameOffers');
+          const q = query(userOrdersRef, where('status', '==', 'pending'));
+          const querySnapshot = await getDocs(q);
+          querySnapshot.forEach((doc) => {
+            allPendingOrders.push({ id: doc.id, ...(doc.data() as UserGameOffer) });
+          });
+        });
+
+        await Promise.all(promises);
+
+        // Sort orders by creation date, most recent first
+        allPendingOrders.sort((a, b) => {
+            const dateA = a.createdAt as any;
+            const dateB = b.createdAt as any;
+            return dateB.seconds - dateA.seconds;
+        });
+
+        setPendingOrders(allPendingOrders);
+      } catch (error) {
+        console.error("Error fetching pending orders:", error);
+        toast({
+          variant: "destructive",
+          title: "خطأ في جلب الطلبات",
+          description: "حدث خطأ أثناء محاولة جلب الطلبات المعلقة.",
+        });
+      } finally {
+        setOrdersLoading(false);
+      }
+    };
+
+    // We depend on `users` being loaded to fetch orders for each user.
+    if(!usersLoading){
+        fetchPendingOrders();
+    }
+  }, [firestore, isCurrentUserAdmin, users, usersLoading, toast]);
+
+
   const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
   const [tempPrice, setTempPrice] = useState('');
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
@@ -257,6 +299,7 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
         await updateDoc(orderRef, { status: 'completed' });
         // The real-time listener will automatically remove the order from the list.
         toast({ title: "تم!", description: "تم تحديث حالة الطلب إلى مكتمل." });
+        setPendingOrders(prev => prev.filter(p => p.id !== order.id));
     } catch (error) {
         console.error("Error completing order: ", error);
         toast({ variant: "destructive", title: "خطأ", description: "فشل تحديث حالة الطلب." });
