@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import OfferCard from './offer-card';
 import GameCard from './game-card';
-import { Copy, ArrowRight, Loader2, CreditCard, Home, User as UserIcon, Wallet, MessageSquare, LogOut } from 'lucide-react';
+import { Copy, ArrowRight, Loader2, CreditCard, Home, User as UserIcon, Wallet, MessageSquare, LogOut, Package } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -48,7 +48,7 @@ interface UserDashboardProps {
 
 const GAMES_REQUIRING_ID = ['PUBG', 'Free Fire', 'عروض التيك توك'];
 
-type UserView = 'home' | 'transactions' | 'account' | 'support';
+type UserView = 'home' | 'orders' | 'account' | 'support';
 
 // My Kashi specific state
 interface MyKashiState {
@@ -77,15 +77,15 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
   }, [firestore]);
   const { data: gameOffers, isLoading: offersLoading } = useCollection<Offer>(offersQuery);
 
-  const transactionsQuery = useMemoFirebase(() => {
+  const ordersQuery = useMemoFirebase(() => {
     if (!firestore || !user?.id) return null;
     return query(
-      collection(firestore, 'users', user.id, 'transactions'),
+      collection(firestore, 'users', user.id, 'userGameOffers'),
       orderBy('createdAt', 'desc')
     );
   }, [firestore, user?.id]);
   
-  const { data: transactions, isLoading: transactionsLoading } = useCollection<Transaction>(transactionsQuery);
+  const { data: orders, isLoading: ordersLoading_ } = useCollection<UserGameOffer>(ordersQuery);
 
 
   const groupedOffers = useMemo(() => {
@@ -292,6 +292,19 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
     }
 };
 
+const getStatusBadge = (status: 'pending' | 'completed' | 'failed') => {
+    switch (status) {
+        case 'pending':
+            return <Badge variant="secondary">قيد التنفيذ</Badge>;
+        case 'completed':
+            return <Badge>مكتمل</Badge>;
+        case 'failed':
+            return <Badge variant="destructive">فشل</Badge>;
+        default:
+            return <Badge variant="outline">غير معروف</Badge>;
+    }
+};
+
 
   const renderHomeContent = () => {
     if (offersLoading) {
@@ -346,12 +359,12 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
     );
   };
   
-  const renderTransactionsContent = () => {
-    if (transactionsLoading) {
+  const renderOrdersContent = () => {
+    if (ordersLoading_) {
        return (
         <div className="flex justify-center items-center p-10">
           <Loader2 className="h-12 w-12 animate-spin text-primary" />
-          <p className="mr-4">جاري تحميل معاملاتك...</p>
+          <p className="mr-4">جاري تحميل طلباتك...</p>
         </div>
       );
     }
@@ -361,31 +374,31 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>التفاصيل</TableHead>
-              <TableHead>المبلغ</TableHead>
+              <TableHead>الطلب</TableHead>
+              <TableHead>السعر</TableHead>
+              <TableHead>الحالة</TableHead>
               <TableHead>التاريخ</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {transactions && transactions.length > 0 ? (
-              transactions.map((tx) => (
-                <TableRow key={tx.id}>
-                  <TableCell className="font-medium">{tx.description}</TableCell>
-                  <TableCell className={cn(
-                      "font-bold",
-                      tx.amount > 0 ? 'text-green-500' : 'text-red-500'
-                  )}>
-                    {tx.amount > 0 ? '+' : ''}
-                    {tx.amount} ج.س
+            {orders && orders.length > 0 ? (
+              orders.map((order) => (
+                <TableRow key={order.id}>
+                  <TableCell className="font-medium">{order.offerName}</TableCell>
+                  <TableCell className="font-bold text-red-500">
+                    {order.price} ج.س
                   </TableCell>
                   <TableCell>
-                    {tx.createdAt ? format(new Date((tx.createdAt as any).seconds * 1000), 'dd/MM/yy hh:mm a') : 'N/A'}
+                    {getStatusBadge(order.status)}
+                  </TableCell>
+                  <TableCell>
+                    {order.createdAt ? format(new Date((order.createdAt as any).seconds * 1000), 'dd/MM/yy hh:mm a') : 'N/A'}
                   </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={3} className="text-center">ليس لديك أي معاملات سابقة.</TableCell>
+                <TableCell colSpan={4} className="text-center">ليس لديك أي طلبات سابقة.</TableCell>
               </TableRow>
             )}
           </TableBody>
@@ -451,14 +464,14 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
     { id: 'account', label: 'حسابي', icon: 'User' },
     { id: 'support', label: 'الدعم', icon: 'MessageSquare' },
     { id: 'home', label: 'الرئيسية', icon: 'Home', isCentral: true },
-    { id: 'transactions', label: 'المعاملات', icon: 'Wallet' },
+    { id: 'orders', label: 'طلباتي', icon: 'Package' },
     { id: 'logout', label: 'خروج', icon: 'LogOut', onClick: onLogout },
   ];
   
   const renderCurrentView = () => {
     switch (view) {
         case 'home': return renderHomeContent();
-        case 'transactions': return renderTransactionsContent();
+        case 'orders': return renderOrdersContent();
         case 'account': return renderAccountContent();
         case 'support': return renderSupportContent();
         default: return renderHomeContent();
@@ -574,4 +587,5 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
 export default UserDashboard;
 
     
+
 
