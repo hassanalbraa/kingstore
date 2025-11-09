@@ -17,6 +17,7 @@ service cloud.firestore {
       allow create: if isOwner(userId);
       allow delete: if isAdmin();
 
+      // This rule allows a user to read and write to their own userGameOffers subcollection
       match /userGameOffers/{userGameOfferId} {
         allow read, write: if isOwner(userId);
       }
@@ -27,8 +28,10 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
     
+    // This rule allows an admin to query across all userGameOffers collections
     match /{path=**}/userGameOffers/{userGameOfferId} {
        allow get, list, update: if isAdmin();
+       // Deleting orders is disallowed for auditing purposes
        allow delete: if false;
     }
 
@@ -39,5 +42,3 @@ service cloud.firestore {
      }
   }
 }
-
-    
