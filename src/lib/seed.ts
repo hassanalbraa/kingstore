@@ -1,8 +1,10 @@
+
 "use client";
 
-import { collection, writeBatch, getDocs, Firestore, doc } from 'firebase/firestore';
+import { collection, writeBatch, getDocs, Firestore, query, where } from 'firebase/firestore';
 
 export const initialOffers = [
+  // The order here will be the initial order in the app
   { gameName: 'PUBG', offerName: '60 شدة', price: 3500, unit: 'شدة' },
   { gameName: 'PUBG', offerName: '120 شدة', price: 7000, unit: 'شدة' },
   { gameName: 'PUBG', offerName: '240 شدة', price: 14000, unit: 'شدة' },
@@ -32,29 +34,54 @@ export const initialOffers = [
 ];
 
 export async function seedGameOffers(db: Firestore) {
-  const offersCollection = collection(db, 'gameOffers');
-  
-  // Check if the collection is already populated to prevent re-seeding
-  const snapshot = await getDocs(offersCollection);
-  if (!snapshot.empty) {
-    console.log("Game offers collection already contains documents. Seeding skipped.");
-    return { success: false, message: "العروض موجودة بالفعل. لم يتم إضافة أي شيء." };
-  }
-
-  const batch = writeBatch(db);
   const offersCollectionRef = collection(db, 'gameOffers');
-
-  initialOffers.forEach((offer) => {
-    const docRef = doc(offersCollectionRef); // Correct way to create a doc with an auto-generated ID
-    batch.set(docRef, offer);
-  });
+  const batch = writeBatch(db);
+  let offersAdded = 0;
+  let offersUpdated = 0;
 
   try {
+    // Get all existing offers to check which ones need updating vs. adding
+    const existingOffersSnapshot = await getDocs(offersCollectionRef);
+    const existingOffersMap = new Map(existingOffersSnapshot.docs.map(doc => [doc.data().offerName, doc]));
+
+    for (let i = 0; i < initialOffers.length; i++) {
+        const offerData = initialOffers[i];
+        const existingDoc = existingOffersMap.get(offerData.offerName);
+        
+        const dataWithOrder = {
+            ...offerData,
+            order: i + 1 // Add the order field based on array index
+        };
+
+        if (existingDoc) {
+            // If offer exists, check if it has the 'order' field. If not, update it.
+            if (existingDoc.data().order === undefined) {
+                batch.update(existingDoc.ref, dataWithOrder);
+                offersUpdated++;
+            }
+            // If it has an order field, we don't touch it to preserve admin's custom sorting
+        } else {
+            // If offer doesn't exist, create it with the order field.
+            const newDocRef = collection(db, 'gameOffers').doc();
+            batch.set(newDocRef, dataWithOrder);
+            offersAdded++;
+        }
+    }
+
+    if (offersAdded === 0 && offersUpdated === 0) {
+        return { success: true, message: "جميع العروض موجودة ومحدثة بالفعل. لا يوجد شيء لفعله." };
+    }
+
     await batch.commit();
-    console.log("Successfully seeded game offers.");
-    return { success: true, message: "تمت إضافة جميع العروض بنجاح!" };
+
+    let message = '';
+    if (offersAdded > 0) message += `تمت إضافة ${offersAdded} عروض جديدة. `;
+    if (offersUpdated > 0) message += `تم تحديث ${offersUpdated} عروض لإضافة الترتيب.`;
+    
+    return { success: true, message: message.trim() };
+
   } catch (error) {
     console.error("Error seeding game offers: ", error);
-    return { success: false, message: `فشل إضافة العروض: ${error}` };
+    return { success: false, message: `فشل إضافة/تحديث العروض: ${error}` };
   }
 }
