@@ -1,7 +1,7 @@
 
 "use client";
 
-import { collection, writeBatch, getDocs, Firestore, query, where } from 'firebase/firestore';
+import { collection, writeBatch, getDocs, Firestore, query, where, doc } from 'firebase/firestore';
 
 export const initialOffers = [
   // The order here will be the initial order in the app
@@ -43,7 +43,9 @@ export async function seedGameOffers(db: Firestore) {
     // Get all existing offers to check which ones need updating vs. adding
     const existingOffersSnapshot = await getDocs(offersCollectionRef);
     const existingOffersMap = new Map(existingOffersSnapshot.docs.map(doc => [doc.data().offerName, doc]));
+    const existingOfferNames = new Set(initialOffers.map(o => o.offerName));
 
+    // Loop through the initial offers array to assign order
     for (let i = 0; i < initialOffers.length; i++) {
         const offerData = initialOffers[i];
         const existingDoc = existingOffersMap.get(offerData.offerName);
@@ -54,19 +56,30 @@ export async function seedGameOffers(db: Firestore) {
         };
 
         if (existingDoc) {
-            // If offer exists, check if it has the 'order' field. If not, update it.
-            if (existingDoc.data().order === undefined) {
-                batch.update(existingDoc.ref, dataWithOrder);
-                offersUpdated++;
-            }
-            // If it has an order field, we don't touch it to preserve admin's custom sorting
+            // If offer exists, update it with the order. This is safe and idempotent.
+            batch.update(existingDoc.ref, dataWithOrder);
+            offersUpdated++;
         } else {
             // If offer doesn't exist, create it with the order field.
-            const newDocRef = collection(db, 'gameOffers').doc();
+            // Use offerName as document ID to prevent duplicates
+            const newDocRef = doc(offersCollectionRef, offerData.offerName.replace(/\//g, '-'));
             batch.set(newDocRef, dataWithOrder);
             offersAdded++;
         }
     }
+    
+    // Check for offers in the database that are NOT in the initialOffers list
+    // and assign them a high order number so they appear at the end.
+    let maxOrder = initialOffers.length;
+    for (const [offerName, docSnap] of existingOffersMap.entries()) {
+        if (!existingOfferNames.has(offerName)) {
+            if (docSnap.data().order === undefined) {
+                 batch.update(docSnap.ref, { order: ++maxOrder });
+                 offersUpdated++;
+            }
+        }
+    }
+
 
     if (offersAdded === 0 && offersUpdated === 0) {
         return { success: true, message: "جميع العروض موجودة ومحدثة بالفعل. لا يوجد شيء لفعله." };
@@ -76,7 +89,7 @@ export async function seedGameOffers(db: Firestore) {
 
     let message = '';
     if (offersAdded > 0) message += `تمت إضافة ${offersAdded} عروض جديدة. `;
-    if (offersUpdated > 0) message += `تم تحديث ${offersUpdated} عروض لإضافة الترتيب.`;
+    if (offersUpdated > 0) message += `تم تحديث ${offersUpdated} عروض لضمان الترتيب الصحيح.`;
     
     return { success: true, message: message.trim() };
 
