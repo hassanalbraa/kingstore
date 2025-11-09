@@ -6,24 +6,41 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Loader2, LogIn } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
 interface LoginFormProps {
-  onLogin: (username: string, password: string) => boolean;
+  onLogin: (email: string, password: string) => boolean;
   onSwitchToRegister: () => void;
 }
 
-const LoginForm = ({ onLogin, onSwitchToRegister }: LoginFormProps) => {
-  const [username, setUsername] = useState('');
+const LoginForm = ({ onSwitchToRegister }: LoginFormProps) => {
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const auth = useAuth();
+  const { toast } = useToast();
 
-  const handleSubmit = (e: FormEvent) => {
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setTimeout(() => {
-        onLogin(username, password);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      toast({
+        title: "تم تسجيل الدخول بنجاح",
+        description: `أهلاً بك!`,
+      });
+    } catch (error: any) {
+       toast({
+        variant: "destructive",
+        title: "فشل تسجيل الدخول",
+        description: "البريد الإلكتروني أو كلمة المرور غير صحيحة.",
+      });
+    } finally {
         setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -35,13 +52,14 @@ const LoginForm = ({ onLogin, onSwitchToRegister }: LoginFormProps) => {
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="username">اسم المستخدم</Label>
+            <Label htmlFor="email">البريد الإلكتروني</Label>
             <Input
-              id="username"
+              id="email"
+              type="email"
               required
-              placeholder="أدخل اسم المستخدم"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              placeholder="أدخل بريدك الإلكتروني"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
             />
           </div>
           <div className="space-y-2">

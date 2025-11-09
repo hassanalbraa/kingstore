@@ -2,7 +2,6 @@ export interface User {
   id: string;
   username: string;
   email?: string;
-  password?: string;
   balance: number;
   role: 'user' | 'admin';
 }

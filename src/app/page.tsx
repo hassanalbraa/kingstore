@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from 'react';
+import { User as FirebaseAuthUser } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 import type { User } from '@/lib/types';
-import { users as mockUsers } from '@/lib/data';
+import { useAuth, useUser, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
+import { initiateEmailSignIn, initiateEmailSignUp } from '@/firebase/non-blocking-login';
 
 import { Card } from '@/components/ui/card';
 import AppHeader from '@/components/layout/header';
@@ -12,67 +15,62 @@ import UserDashboard from '@/components/dashboard/user-dashboard';
 import AdminDashboard from '@/components/dashboard/admin-dashboard';
 import SettingsPage from '@/components/dashboard/settings-page';
 import { useToast } from '@/hooks/use-toast';
+import { Loader2 } from 'lucide-react';
 
 type View = 'login' | 'register' | 'user_dashboard' | 'admin_dashboard' | 'settings';
 
 export default function Home() {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [view, setView] = useState<View>('login');
-  const [users, setUsers] = useState<User[]>(mockUsers);
   const { toast } = useToast();
+  const auth = useAuth();
+  const firestore = useFirestore();
+  const { user: firebaseUser, isUserLoading } = useUser();
 
-  const handleLogin = (username: string, password: string): boolean => {
-    const user = users.find(
-      (u) => u.username === username && u.password === password
-    );
+  const userDocRef = useMemoFirebase(() => {
+    if (!firestore || !firebaseUser) return null;
+    return doc(firestore, 'users', firebaseUser.uid);
+  }, [firestore, firebaseUser]);
 
-    if (user) {
-      setCurrentUser(user);
-      setView(user.role === 'admin' ? 'admin_dashboard' : 'user_dashboard');
-      toast({
-        title: "تم تسجيل الدخول بنجاح",
-        description: `أهلاً بك، ${user.username}!`,
-      });
-      return true;
-    } else {
-      toast({
-        variant: "destructive",
-        title: "فشل تسجيل الدخول",
-        description: "اسم المستخدم أو كلمة المرور غير صحيحة.",
-      });
-      return false;
-    }
+  const { data: currentUser, isLoading: isUserDocLoading } = useDoc<User>(userDocRef);
+
+  const handleLogin = (email: string, password: string): boolean => {
+    initiateEmailSignIn(auth, email, password);
+    // We don't return true/false anymore as auth is async
+    return true; 
   };
   
-  const handleRegister = (username: string, email: string, password: string): boolean => {
-    if (users.some(u => u.username === username)) {
-      toast({ variant: "destructive", title: "خطأ", description: "اسم المستخدم موجود بالفعل." });
-      return false;
-    }
-    if (users.some(u => u.email === email)) {
-      toast({ variant: "destructive", title: "خطأ", description: "البريد الإلكتروني موجود بالفعل." });
-      return false;
-    }
+  const handleRegister = async (username: string, email: string, password: string): Promise<boolean> => {
+    try {
+      // First, create user in Firebase Auth
+      const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+      const authUser = userCredential.user;
 
-    const newUser: User = {
-      id: `user-${Date.now()}`,
-      username,
-      email,
-      password,
-      balance: 0,
-      role: 'user',
-    };
-    
-    setUsers([...users, newUser]);
-    toast({ title: 'نجاح', description: 'تم إنشاء حسابك بنجاح! يمكنك الآن تسجيل الدخول.' });
-    setView('login');
-    return true;
+      // Then, create user profile in Firestore
+      const newUser: User = {
+        id: authUser.uid,
+        username,
+        email,
+        balance: 0,
+        role: 'user', // Default role
+      };
+
+      await setDoc(doc(firestore, "users", authUser.uid), newUser);
+      
+      toast({ title: 'نجاح', description: 'تم إنشاء حسابك بنجاح! يمكنك الآن تسجيل الدخول.' });
+      setView('login');
+      return true;
+    } catch (error: any) {
+      if (error.code === 'auth/email-already-in-use') {
+        toast({ variant: "destructive", title: "خطأ", description: "البريد الإلكتروني موجود بالفعل." });
+      } else {
+        toast({ variant: "destructive", title: "خطأ", description: "حدث خطأ أثناء إنشاء الحساب." });
+      }
+      return false;
+    }
   };
 
-
   const handleLogout = () => {
-    setCurrentUser(null);
-    setView('login');
+    auth.signOut();
   };
 
   const handleGoToSettings = () => {
@@ -84,19 +82,25 @@ export default function Home() {
   }
 
   const handleBackToDashboard = () => {
-    if (currentUser) {
-      setView(currentUser.role === 'admin' ? 'admin_dashboard' : 'user_dashboard');
-    }
+    // The view will be determined by the user's role from the document
   };
 
   const renderView = () => {
+    if (isUserLoading || (firebaseUser && isUserDocLoading)) {
+      return <div className="flex justify-center items-center p-10"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
+    }
+    
+    if (firebaseUser && currentUser) {
+       if (view === 'settings') {
+         return <SettingsPage onBack={handleBackToDashboard} />;
+       }
+       return currentUser.role === 'admin' 
+        ? <AdminDashboard onLogout={handleLogout} /> 
+        : <UserDashboard user={currentUser} onLogout={handleLogout} onGoToSettings={handleGoToSettings} />;
+    }
+
+    // If no user, show login or register
     switch (view) {
-      case 'user_dashboard':
-        return currentUser && <UserDashboard user={currentUser} onLogout={handleLogout} onGoToSettings={handleGoToSettings} />;
-      case 'admin_dashboard':
-        return <AdminDashboard onLogout={handleLogout} />;
-      case 'settings':
-        return <SettingsPage onBack={handleBackToDashboard} />;
       case 'register':
         return <RegisterForm onRegister={handleRegister} onSwitchToLogin={() => handleSwitchView('login')} />;
       case 'login':
@@ -109,7 +113,7 @@ export default function Home() {
     <div className="flex flex-col min-h-screen bg-background">
       <AppHeader />
       <main className="flex-grow flex items-center justify-center p-4">
-        <Card className="w-full max-w-lg mx-auto shadow-2xl rounded-2xl overflow-hidden">
+        <Card className="w-full max-w-lg mx-auto shadow-2xl rounded-2xl overflow-hidden min-h-[300px]">
           {renderView()}
         </Card>
       </main>

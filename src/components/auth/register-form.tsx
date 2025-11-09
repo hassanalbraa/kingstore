@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, UserPlus } from 'lucide-react';
 
 interface RegisterFormProps {
-  onRegister: (username: string, email: string, password: string) => boolean;
+  onRegister: (username: string, email: string, password: string) => Promise<boolean>;
   onSwitchToLogin: () => void;
 }
 
@@ -18,13 +18,11 @@ const RegisterForm = ({ onRegister, onSwitchToLogin }: RegisterFormProps) => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setTimeout(() => {
-      onRegister(username, email, password);
-      setIsLoading(false);
-    }, 1000);
+    await onRegister(username, email, password);
+    setIsLoading(false);
   };
 
   return (
