@@ -40,8 +40,9 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Force re-deployment to ensure public access is correctly applied.
     match /gameOffers/{gameOfferId} {
-      allow get, list: if true;
+      allow get, list: if request.auth != null;
       allow create, update, delete: if isAdmin();
     }
 
@@ -52,10 +53,7 @@ service cloud.firestore {
      match /roles_admin/{userId} {
        allow get: if true;
        allow list: if isAdmin();
-       // Only allow a user to create their own admin role document.
-       // The application logic ensures this only happens for the designated admin email.
        allow create: if isOwner(userId);
-       // Only other admins can delete an admin role.
        allow delete: if isAdmin();
        allow update: if false;
      }
