@@ -2,14 +2,15 @@
 
 import { useState, useMemo } from 'react';
 import type { User, Offer } from '@/lib/types';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
 import { CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import OfferCard from './offer-card';
-import GameCard from './game-card'; // Import the new component
-import { Settings, LogOut, Copy, ArrowRight } from 'lucide-react';
+import GameCard from './game-card';
+import { Settings, LogOut, Copy, ArrowRight, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { initialOffers as gameOffers } from '@/lib/seed';
 
 interface UserDashboardProps {
   user: User;
@@ -20,17 +21,14 @@ interface UserDashboardProps {
 const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) => {
   const { toast } = useToast();
   const [selectedGame, setSelectedGame] = useState<string | null>(null);
-
-  const offersLoading = false;
+  const firestore = useFirestore();
   
+  const offersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'gameOffers') : null, [firestore]);
+  const { data: gameOffers, isLoading: offersLoading } = useCollection<Offer>(offersQuery);
+
   const groupedOffers = useMemo(() => {
     if (!gameOffers) return {};
-    const offersWithId: Offer[] = gameOffers.map((offer, index) => ({
-        ...offer,
-        id: `static-offer-${index}`
-    }));
-
-    return offersWithId.reduce((acc, offer) => {
+    return gameOffers.reduce((acc, offer) => {
       const gameName = offer.gameName;
       if (!acc[gameName]) {
         acc[gameName] = [];
@@ -38,7 +36,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
       acc[gameName].push(offer);
       return acc;
     }, {} as Record<string, Offer[]>);
-  }, []);
+  }, [gameOffers]);
 
   const gameNames = useMemo(() => Object.keys(groupedOffers), [groupedOffers]);
 
@@ -49,7 +47,12 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
 
   const renderContent = () => {
     if (offersLoading) {
-      return <div className="flex justify-center"><p>جاري تحميل العروض...</p></div>;
+      return (
+        <div className="flex justify-center items-center p-10">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="mr-4">جاري تحميل العروض...</p>
+        </div>
+      );
     }
 
     // If a game is selected, show its offers
@@ -125,3 +128,5 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
 };
 
 export default UserDashboard;
+
+    
