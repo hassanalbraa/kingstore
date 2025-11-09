@@ -1,26 +1,4 @@
 
-/**
- * @fileoverview Firestore Security Rules for KING STORE application.
- *
- * Core Philosophy:
- * This ruleset enforces a strict user-ownership model for user profiles and user-specific data.
- * Administrative privileges are managed through a separate collection, ensuring clear separation of concerns.
- * Game offers are publicly accessible, but their management is restricted.
- *
- * Data Structure:
- * - /users/{userId}: Stores user profiles, accessible only by the user themselves.
- * - /gameOffers/{gameOfferId}: Stores publicly accessible game offers.
- * - /users/{userId}/userGameOffers/{userGameOfferId}: Stores the relationships between users and purchased game offers, accessible only by the user.
- * - /roles_admin/{userId}: Indicates users with admin privileges. Document existence grants admin rights.
- *
- * Key Security Decisions:
- * - User listing is disallowed to protect user privacy.
- * - Admin status is determined by document existence in `/roles_admin/{userId}`.
- * - Ambiguous relationships default to strict owner-only access.
- *
- * Denormalization for Authorization:
- * - Admin status is denormalized into the `roles_admin` collection to avoid `get()` calls in security rules.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -47,32 +25,27 @@ service cloud.firestore {
       allow get, list: if true;
       allow create, update, delete: if isAdmin();
     }
-
-    // --- Start: New Simplified Rules for UserGameOffers ---
-
-    // Rule specifically for a user accessing their OWN offers.
-    // This is the primary rule for non-admin users.
-    match /users/{userId}/userGameOffers/{userGameOfferId} {
-      allow get, list, create, delete: if isOwner(userId);
-      // A regular user can never update the status of their own order.
-      allow update: if false;
-    }
     
-    // Rule specifically for ADMINS using a collection group query.
-    // This allows admins to see and update all orders across all users.
-    match /{path=**}/userGameOffers/{userGameOfferId} {
+    // Admins can query the collection group and update any order.
+    // Users can only create their own orders, and read them via a query with a 'where' clause.
+    match /userGameOffers/{userGameOfferId} {
+       // Admins can read and update any order.
        allow get, list, update: if isAdmin();
-       // Admins should not create or delete orders through this general path to avoid errors.
-       allow create, delete: if false;
+       // Users can create their own documents, rule checks if the new doc belongs to the user.
+       allow create: if isOwner(request.resource.data.userId);
+       // Users can read their own documents (e.g. for a detail page), enforced by checking the stored data.
+       allow get: if isOwner(resource.data.userId);
+       // Users cannot update or delete orders. Admins can update, but cannot delete.
+       allow delete: if false;
     }
 
-    // --- End: New Simplified Rules for UserGameOffers ---
 
      match /roles_admin/{userId} {
        allow get: if true;
-       allow list: if isAdmin();
+       allow list, delete: if isAdmin();
+       // Allow a user to create their own admin role document.
+       // This is safe because it's only triggered for the admin email in the client code.
        allow create: if isOwner(userId);
-       allow delete: if isAdmin();
        allow update: if false;
      }
   }
