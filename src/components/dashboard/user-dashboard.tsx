@@ -332,7 +332,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
       </p>
        <div className="flex flex-col sm:flex-row gap-4 justify-center mt-4">
         <Button asChild className="w-full sm:w-auto">
-            <a href="https://wa.me/249123456789" target="_blank" rel="noopener noreferrer">
+            <a href="https://wa.me/249994488276" target="_blank" rel="noopener noreferrer">
                 تواصل عبر واتساب
             </a>
         </Button>
@@ -442,3 +442,5 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
 };
 
 export default UserDashboard;
+
+    
