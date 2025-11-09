@@ -1,3 +1,4 @@
+
 /**
  * @fileoverview Firestore Security Rules for KING STORE.
  *
@@ -72,7 +73,8 @@ service cloud.firestore {
       // Admins can manage other admins.
       allow get, delete: if isAdmin();
       
-      // Allow a user to create their own admin role document (app logic restricts this to 'admin@king.store').
+      // Allow a user to create their own admin role document. 
+      // The app's client-side logic restricts this to 'admin@king.store'.
       // Existing admins can also create new admin roles.
       allow create: if isOwner(userId) || isAdmin();
 
