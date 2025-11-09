@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 
 interface TawkToProps {
     propertyId: string;
@@ -8,31 +8,31 @@ interface TawkToProps {
 }
 
 const TawkTo = ({ propertyId, widgetId }: TawkToProps) => {
-    const tawkToScriptAdded = useRef(false);
-
     useEffect(() => {
-        // Prevent script from being added multiple times, e.g., during hot reloads in dev
-        if (tawkToScriptAdded.current) {
+        // Ensure this code runs only in the browser
+        if (typeof window === 'undefined') {
             return;
         }
 
+        // Create a script element
         const s1 = document.createElement("script");
         s1.async = true;
         s1.src = `https://embed.tawk.to/${propertyId}/${widgetId}`;
         s1.charset = 'UTF-8';
         s1.setAttribute('crossorigin', '*');
+        
+        // Append the script to the body
         document.body.appendChild(s1);
-
-        tawkToScriptAdded.current = true;
 
         // Clean up the script when the component unmounts
         return () => {
-            if (document.body.contains(s1)) {
-                document.body.removeChild(s1);
+            // Find the script and remove it to prevent memory leaks and issues on re-renders
+            const script = document.querySelector(`script[src="https://embed.tawk.to/${propertyId}/${widgetId}"]`);
+            if (script && document.body.contains(script)) {
+                document.body.removeChild(script);
             }
-            tawkToScriptAdded.current = false;
         };
-    }, [propertyId, widgetId]);
+    }, [propertyId, widgetId]); // Re-run effect if props change
 
     return null; // This component doesn't render anything itself
 };
