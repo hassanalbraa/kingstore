@@ -168,7 +168,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
         const newTransaction: Omit<Transaction, 'id'> = {
             userId: user.id,
             type: 'purchase',
-            amount: selectedOffer.price,
+            amount: -selectedOffer.price,
             description: `شراء: ${selectedOffer.offerName}`,
             createdAt: new Date(),
         };
@@ -271,9 +271,9 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
                   <TableCell className="font-medium">{tx.description}</TableCell>
                   <TableCell className={cn(
                       "font-bold",
-                      tx.type === 'purchase' ? 'text-red-500' : 'text-green-500'
+                      tx.amount < 0 ? 'text-red-500' : 'text-green-500'
                   )}>
-                    {tx.type === 'purchase' ? '-' : '+'}
+                    {tx.amount > 0 ? '+' : ''}
                     {tx.amount} ج.س
                   </TableCell>
                   <TableCell>
@@ -328,13 +328,20 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
     <div className="p-4 text-center">
       <h3 className="text-xl font-semibold mb-4">الدعم الفني</h3>
       <p className="text-muted-foreground">
-        للتواصل مع الدعم الفني، يرجى مراسلتنا على واتساب.
+        للتواصل مع الدعم الفني، يمكنك استخدام القنوات التالية:
       </p>
-       <Button className="mt-4" asChild>
-        <a href="https://wa.me/249123456789" target="_blank" rel="noopener noreferrer">
-            تواصل عبر واتساب
-        </a>
-       </Button>
+       <div className="flex flex-col sm:flex-row gap-4 justify-center mt-4">
+        <Button asChild className="w-full sm:w-auto">
+            <a href="https://wa.me/249123456789" target="_blank" rel="noopener noreferrer">
+                تواصل عبر واتساب
+            </a>
+        </Button>
+        <Button asChild variant="outline" className="w-full sm:w-auto">
+            <a href="https://www.facebook.com/share/1EvuK3HxYj/" target="_blank" rel="noopener noreferrer">
+                تواصل عبر فيسبوك
+            </a>
+        </Button>
+       </div>
     </div>
   );
 
