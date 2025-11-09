@@ -81,18 +81,26 @@ export default function Home() {
       // Step 2: Generate a unique wallet ID
       const walletId = await generateUniqueWalletId();
 
-      // Step 3: Create user document in Firestore
+      // Step 3: Determine user role
+      const userRole = email === 'admin@king.store' ? 'admin' : 'user';
+
+      // Step 4: Create user document in Firestore
       const newUser: User = {
         id: authUser.uid,
         walletId,
         username,
         email,
         balance: 0,
-        role: 'user',
+        role: userRole,
       };
       
       const userDoc = doc(firestore, "users", authUser.uid);
       await setDoc(userDoc, newUser);
+
+      if (userRole === 'admin') {
+        const adminRoleDoc = doc(firestore, "roles_admin", authUser.uid);
+        await setDoc(adminRoleDoc, { isAdmin: true });
+      }
       
       toast({ title: 'نجاح', description: 'تم إنشاء حسابك بنجاح! يمكنك الآن تسجيل الدخول.' });
       setView('login');
@@ -100,7 +108,7 @@ export default function Home() {
     } catch (error: any) {
       console.error("Registration Error:", error);
       
-      let description = "يقول انه حدث خطا اثناء انشاء الحساب";
+      let description = "حدث خطأ أثناء إنشاء الحساب.";
       if (error.code === 'auth/email-already-in-use') {
         description = "هذا البريد الإلكتروني مستخدم بالفعل.";
       } else if (error.code === 'permission-denied') {
@@ -198,3 +206,5 @@ export default function Home() {
     </div>
   );
 }
+
+    
