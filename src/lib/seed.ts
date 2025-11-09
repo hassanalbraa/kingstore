@@ -1,6 +1,6 @@
 "use client";
 
-import { collection, writeBatch, getDocs, Firestore } from 'firebase/firestore';
+import { collection, writeBatch, getDocs, Firestore, doc } from 'firebase/firestore';
 
 export const initialOffers = [
   { gameName: 'PUBG', offerName: '60 شدة', price: 3500, unit: 'شدة' },
@@ -42,9 +42,10 @@ export async function seedGameOffers(db: Firestore) {
   }
 
   const batch = writeBatch(db);
+  const offersCollectionRef = collection(db, 'gameOffers');
 
   initialOffers.forEach((offer) => {
-    const docRef = collection(db, 'gameOffers').doc(); // Create a new doc with a random ID
+    const docRef = doc(offersCollectionRef); // Correct way to create a doc with an auto-generated ID
     batch.set(docRef, offer);
   });
 
