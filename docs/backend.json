@@ -56,6 +56,10 @@
         "unit": {
           "type": "string",
           "description": "The unit of the offer (e.g., شدة, 💎, 🪙)."
+        },
+        "order": {
+          "type": "number",
+          "description": "The display order of the offer."
         }
       },
       "required": [

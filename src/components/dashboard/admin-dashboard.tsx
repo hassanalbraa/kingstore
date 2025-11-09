@@ -1,15 +1,16 @@
 
+
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
 import type { User, Offer, UserGameOffer, WithId, Transaction } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, useUser, useDoc } from '@/firebase';
-import { collection, doc, getDocs, query, where, runTransaction, updateDoc, collectionGroup, addDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, query, where, runTransaction, updateDoc, collectionGroup, addDoc, writeBatch, orderBy } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Edit, Save, XCircle, Loader2, PlusCircle, Copy, Database, Gift, Search, ArrowRight, CheckCircle, RefreshCw, Check } from 'lucide-react';
+import { Edit, Save, XCircle, Loader2, PlusCircle, Copy, Database, Gift, Search, ArrowRight, CheckCircle, RefreshCw, Check, ArrowUp, ArrowDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { seedGameOffers } from '@/lib/seed';
 import { Combobox } from '@/components/ui/combobox';
@@ -58,7 +59,7 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
 
   const offersQuery = useMemoFirebase(() => {
     if (firestore && isCurrentUserAdmin) {
-        return collection(firestore, 'gameOffers');
+        return query(collection(firestore, 'gameOffers'), orderBy('order'));
     }
     return null;
   }, [firestore, isCurrentUserAdmin]);
@@ -168,11 +169,14 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
     setIsAddingOffer(true);
     try {
         const offersCollection = collection(firestore, 'gameOffers');
+        const maxOrder = offers?.reduce((max, offer) => Math.max(offer.order || 0, max), 0) || 0;
+        
         await addDocumentNonBlocking(offersCollection, {
             gameName: newGameName,
             offerName: newOfferName,
             price: Math.round(price),
             unit: newUnit,
+            order: maxOrder + 1,
         });
 
         toast({ title: 'نجاح', description: 'تمت إضافة العرض الجديد بنجاح!' });
@@ -311,6 +315,35 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
         setUpdatingOrderId(null);
     }
 };
+
+const handleMoveOffer = async (currentIndex: number, direction: 'up' | 'down') => {
+    if (!firestore || !offers) return;
+
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= offers.length) {
+        return; // Already at the top or bottom
+    }
+
+    const offerToMove = offers[currentIndex];
+    const otherOffer = offers[targetIndex];
+
+    const batch = writeBatch(firestore);
+
+    const offerToMoveRef = doc(firestore, 'gameOffers', offerToMove.id);
+    batch.update(offerToMoveRef, { order: otherOffer.order });
+
+    const otherOfferRef = doc(firestore, 'gameOffers', otherOffer.id);
+    batch.update(otherOfferRef, { order: offerToMove.order });
+
+    try {
+        await batch.commit();
+        toast({ title: 'تم تحديث الترتيب' });
+    } catch (error) {
+        console.error("Error reordering offers:", error);
+        toast({ variant: 'destructive', title: 'خطأ', description: 'فشل تحديث ترتيب العروض.' });
+    }
+};
+
 
 const getStatusBadge = (status: 'pending' | 'completed' | 'failed') => {
     switch (status) {
@@ -567,7 +600,7 @@ const renderOrdersContent = () => {
             ) : offersError ? (
                <TableRow><TableCell colSpan={4} className="text-center text-red-500">حدث خطأ أثناء تحميل العروض</TableCell></TableRow>
             ) : (
-              offers?.map((offer) => (
+              offers?.map((offer, index) => (
                 <TableRow key={offer.id}>
                   <TableCell className="font-medium">{offer.gameName}</TableCell>
                   <TableCell>{offer.offerName}</TableCell>
@@ -584,14 +617,24 @@ const renderOrdersContent = () => {
                     )}
                   </TableCell>
                   <TableCell className="text-left">
-                    {editingOfferId === offer.id ? (
-                      <div className="flex gap-1">
-                        <Button size="icon" className="h-8 w-8" onClick={() => handleSaveOffer(offer.id)}><Save className="h-4 w-4" /></Button>
-                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setEditingOfferId(null)}><XCircle className="h-4 w-4" /></Button>
-                      </div>
-                    ) : (
-                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleEditOffer(offer)}><Edit className="h-4 w-4" /></Button>
-                    )}
+                    <div className="flex items-center justify-end gap-1">
+                      {editingOfferId === offer.id ? (
+                        <>
+                          <Button size="icon" className="h-8 w-8" onClick={() => handleSaveOffer(offer.id)}><Save className="h-4 w-4" /></Button>
+                          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setEditingOfferId(null)}><XCircle className="h-4 w-4" /></Button>
+                        </>
+                      ) : (
+                        <>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleMoveOffer(index, 'up')} disabled={index === 0}>
+                                <ArrowUp className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleMoveOffer(index, 'down')} disabled={index === offers.length - 1}>
+                                <ArrowDown className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleEditOffer(offer)}><Edit className="h-4 w-4" /></Button>
+                        </>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

@@ -18,6 +18,7 @@ export interface Offer {
   price: number;
   unit: string;
   imageId?: string;
+  order?: number;
 }
 
 export interface UserGameOffer {

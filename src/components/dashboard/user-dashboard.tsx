@@ -84,7 +84,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
   
   const offersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return collection(firestore, 'gameOffers');
+    return query(collection(firestore, 'gameOffers'), orderBy('order'));
   }, [firestore]);
   const { data: gameOffers, isLoading: offersLoading } = useCollection<Offer>(offersQuery);
 
@@ -793,6 +793,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
 export default UserDashboard;
 
     
+
 
 
 
