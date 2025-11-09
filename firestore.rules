@@ -64,17 +64,17 @@ service cloud.firestore {
     /**
      * @description Manages admin roles. Document existence grants admin rights.
      * @path /roles_admin/{userId}
-     * @allow (get, create, delete) if isAdmin()
-     * @deny (get, create, delete) if not isAdmin()
+     * @allow (get, create, delete) if isAdmin() or isOwner(userId) for create
+     * @deny (get, create, delete) if not allowed.
      * @principle Manages admin roles based on document existence.
      */
     match /roles_admin/{userId} {
-      // Allow admins to get or delete roles.
+      // Admins can manage other admins.
       allow get, delete: if isAdmin();
       
-      // Allow the initial admin user to be created if they are the owner and no other admins exist.
-      // Allow subsequent admin roles to be created only by existing admins.
-      allow create: if (isOwner(userId) && !exists(/databases/$(database)/documents/roles_admin)) || isAdmin();
+      // Allow a user to create their own admin role document (app logic restricts this to 'admin@king.store').
+      // Existing admins can also create new admin roles.
+      allow create: if isOwner(userId) || isAdmin();
 
       allow update: if false; // No updates allowed, only create and delete for role assignment.
       
