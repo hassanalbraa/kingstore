@@ -61,29 +61,15 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
   const offersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'gameOffers') : null, [firestore]);
   const { data: gameOffers, isLoading: offersLoading } = useCollection<Offer>(offersQuery);
 
-  const myOrdersQuery = useMemoFirebase(() => 
-    firestore && user 
-    ? query(
-        collection(firestore, 'users', user.id, 'userGameOffers'),
-        orderBy('createdAt', 'desc')
-      )
-    : null
-  , [firestore, user]);
+  const myOrdersQuery = useMemoFirebase(() => {
+    if (!firestore || !user?.id) return null; // FIX: Ensure user and firestore exist
+    return query(
+      collection(firestore, 'users', user.id, 'userGameOffers'),
+      orderBy('createdAt', 'desc')
+    );
+  }, [firestore, user]);
   
-  const { data, isLoading: ordersLoading } = useCollection<UserGameOffer>(myOrdersQuery);
-  const [myOrders, setMyOrders] = useState<UserGameOffer[]>([]);
-
-  useEffect(() => {
-    if (data) {
-        // Manually sort since orderBy in query is removed.
-        const sortedData = [...data].sort((a, b) => {
-            const dateA = a.createdAt as any;
-            const dateB = b.createdAt as any;
-            return dateB.seconds - dateA.seconds;
-        });
-        setMyOrders(sortedData);
-    }
-  }, [data]);
+  const { data: myOrders, isLoading: ordersLoading } = useCollection<UserGameOffer>(myOrdersQuery);
 
 
   const groupedOffers = useMemo(() => {
@@ -410,3 +396,5 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
 };
 
 export default UserDashboard;
+
+    

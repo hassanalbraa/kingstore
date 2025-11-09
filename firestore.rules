@@ -19,12 +19,15 @@ service cloud.firestore {
 
       // Rules for the subcollection
       match /userGameOffers/{userGameOfferId} {
-        allow read, write: if isOwner(userId) || isAdmin();
+        // A user can create, read, and write to their own subcollection
+        allow read, write: if isOwner(userId);
       }
     }
 
     match /gameOffers/{gameOfferId} {
+      // Any authenticated user can read the offers
       allow read: if request.auth != null;
+      // Only admins can create, update, or delete offers
       allow create, update, delete: if isAdmin();
     }
     

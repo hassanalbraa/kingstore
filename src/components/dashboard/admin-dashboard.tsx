@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
@@ -33,7 +34,6 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
   const { user: authUser } = useUser();
   const { toast } = useToast();
 
-  // Step 1: Get the current user's document from Firestore to check their role.
   const currentUserDocRef = useMemoFirebase(() => {
     if (firestore && authUser) {
         return doc(firestore, 'users', authUser.uid);
@@ -44,14 +44,15 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
   
   const isCurrentUserAdmin = useMemo(() => currentUser?.role === 'admin', [currentUser]);
 
-  // Step 2: Fetch all other users only if the current user is an admin.
   const usersQuery = useMemoFirebase(() => {
     if (firestore && isCurrentUserAdmin) {
-        return query(collection(firestore, 'users'), where('role', '==', 'user'));
+        return collection(firestore, 'users');
     }
     return null;
   }, [firestore, isCurrentUserAdmin]);
-  const { data: displayUsers, isLoading: usersLoading } = useCollection<User>(usersQuery);
+  const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
+  const displayUsers = useMemo(() => users?.filter(u => u.role === 'user'), [users]);
+
 
   const offersQuery = useMemoFirebase(() => {
     if (firestore && isCurrentUserAdmin) {
@@ -61,7 +62,6 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
   }, [firestore, isCurrentUserAdmin]);
   const { data: offers, isLoading: offersLoading, error: offersError } = useCollection<Offer>(offersQuery);
 
-  // Step 3: Fetch pending orders using collectionGroup if the user is an admin.
   const pendingOrdersQuery = useMemoFirebase(() => {
     if (firestore && isCurrentUserAdmin) {
       return query(
@@ -486,8 +486,7 @@ const renderOrdersContent = () => {
                   ) : (
                     displayUsers?.map((user) => (
                       <TableRow key={user.id}>
-                        <TableCell className="font-medium">{user.username}</TableCell>
-                         <TableCell>
+                        <TableCell className="font-medium">{user.username}</TableCell>                         <TableCell>
                           <div className="flex items-center gap-2">
                              <span className="font-mono text-sm">{user.walletId}</span>
                              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleCopyWalletId(user.walletId)}>
