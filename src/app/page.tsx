@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { User as FirebaseAuthUser } from 'firebase/auth';
-import { doc, setDoc, getDocs, query, where, collection } from 'firebase/firestore';
+import { doc, setDoc, getDocs, query, where, collection, writeBatch } from 'firebase/firestore';
 import type { User } from '@/lib/types';
 import { useAuth, useUser, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
 
@@ -41,6 +41,7 @@ export default function Home() {
         title: "تم تسجيل الدخول بنجاح",
         description: `أهلاً بك!`,
       });
+      // The view will change automatically based on the user state change
       return true;
     } catch (error: any) {
        toast({
@@ -73,19 +74,18 @@ export default function Home() {
 
 
   const handleRegister = async (username: string, email: string, password: string): Promise<boolean> => {
-    let authUser: FirebaseAuthUser | null = null;
     try {
-      // Step 1: Create user in Firebase Auth but don't sign them in automatically
+      // 1. Create the user in Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      authUser = userCredential.user;
+      const authUser = userCredential.user;
 
-      // Step 2: Generate a unique wallet ID
+      // 2. Explicitly sign in to ensure auth state is active for security rules
+      await signInWithEmailAndPassword(auth, email, password);
+      
+      // 3. Prepare data and batch write to Firestore
       const walletId = await generateUniqueWalletId();
-
-      // Step 3: Determine user role
       const userRole = email === 'admin@king.store' ? 'admin' : 'user';
 
-      // Step 4: Create user document in Firestore
       const newUser: User = {
         id: authUser.uid,
         walletId,
@@ -95,30 +95,30 @@ export default function Home() {
         role: userRole,
       };
       
+      const batch = writeBatch(firestore);
+      
       const userDoc = doc(firestore, "users", authUser.uid);
-      await setDoc(userDoc, newUser);
+      batch.set(userDoc, newUser);
 
-      // Step 5: Create admin role if applicable
       if (userRole === 'admin') {
         const adminRoleDoc = doc(firestore, "roles_admin", authUser.uid);
-        await setDoc(adminRoleDoc, { isAdmin: true });
+        batch.set(adminRoleDoc, { isAdmin: true });
       }
-      
-      // Since we didn't sign in, we can sign out any lingering session if needed (though createUser doesn't sign in)
-      if (auth.currentUser) {
-        await auth.signOut();
-      }
-      
-      toast({ title: 'نجاح', description: 'تم إنشاء حسابك بنجاح! يمكنك الآن تسجيل الدخول.' });
-      setView('login');
+
+      // 4. Commit the batch
+      await batch.commit();
+
+      toast({ title: 'نجاح', description: 'تم إنشاء حسابك وتسجيل دخولك بنجاح!' });
+      // View will change automatically due to user state change
       return true;
+
     } catch (error: any) {
       console.error("Registration Error:", error);
       
-      // Rollback Auth user if it was created
-      if (authUser) {
+      // Attempt to clean up the created auth user if registration fails at a later step
+      if (auth.currentUser && auth.currentUser.email === email) {
         try {
-          await authUser.delete();
+          await auth.currentUser.delete();
           console.log("Rolled back Auth user creation.");
         } catch (deleteError) {
           console.error("Failed to rollback Auth user creation:", deleteError);
@@ -129,7 +129,7 @@ export default function Home() {
       if (error.code === 'auth/email-already-in-use') {
         description = "هذا البريد الإلكتروني مستخدم بالفعل.";
       } else if (error.code === 'permission-denied') {
-        description = "ليس لديك الصلاحية لإنشاء هذا الحساب. قد تكون هناك مشكلة في قواعد الأمان."
+        description = "ليس لديك الصلاحية لإنشاء هذا الحساب. هناك مشكلة في قواعد الأمان."
       }
       
       toast({ variant: "destructive", title: "خطأ في إنشاء الحساب", description });
