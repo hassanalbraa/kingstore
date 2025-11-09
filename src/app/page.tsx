@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import { User as FirebaseAuthUser } from 'firebase/auth';
-import { doc, setDoc, getDocs, query, where, collection } from 'firebase/firestore';
+import { doc, setDoc, getDocs, query, where, collection, writeBatch } from 'firebase/firestore';
 import type { User } from '@/lib/types';
-import { useAuth, useUser, useFirestore, useMemoFirebase, useDoc, setDocumentNonBlocking } from '@/firebase';
+import { useAuth, useUser, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
 
 import { Card } from '@/components/ui/card';
 import AppHeader from '@/components/layout/header';
@@ -74,7 +74,7 @@ export default function Home() {
   const handleRegister = async (username: string, email: string, password: string): Promise<boolean> => {
     let authUser: FirebaseAuthUser | null = null;
     try {
-      // Step 1: Create user in Firebase Auth
+      // Step 1: Create user in Firebase Auth but don't sign them in automatically
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       authUser = userCredential.user;
 
@@ -84,7 +84,9 @@ export default function Home() {
       // Step 3: Determine user role
       const userRole = email === 'admin@king.store' ? 'admin' : 'user';
 
-      // Step 4: Create user document in Firestore
+      // Step 4: Create user document in Firestore using a batch
+      const batch = writeBatch(firestore);
+
       const newUser: User = {
         id: authUser.uid,
         walletId,
@@ -95,13 +97,19 @@ export default function Home() {
       };
       
       const userDoc = doc(firestore, "users", authUser.uid);
-      // Use non-blocking write to allow for contextual error handling
-      setDocumentNonBlocking(userDoc, newUser, { merge: false });
+      batch.set(userDoc, newUser);
 
       if (userRole === 'admin') {
         const adminRoleDoc = doc(firestore, "roles_admin", authUser.uid);
-        // Use non-blocking write
-        setDocumentNonBlocking(adminRoleDoc, { isAdmin: true }, { merge: false });
+        batch.set(adminRoleDoc, { isAdmin: true });
+      }
+
+      // Step 5: Commit the batch
+      await batch.commit();
+      
+      // Since we didn't sign in, we can sign out any lingering session if needed (though createUser doesn't sign in)
+      if (auth.currentUser) {
+        await auth.signOut();
       }
       
       toast({ title: 'نجاح', description: 'تم إنشاء حسابك بنجاح! يمكنك الآن تسجيل الدخول.' });
@@ -110,15 +118,6 @@ export default function Home() {
     } catch (error: any) {
       console.error("Registration Error:", error);
       
-      // This catch block will now primarily handle Auth errors (e.g., email-already-in-use)
-      // Firestore permission errors will be handled by the global error listener.
-      let description = "حدث خطأ أثناء إنشاء الحساب.";
-      if (error.code === 'auth/email-already-in-use') {
-        description = "هذا البريد الإلكتروني مستخدم بالفعل.";
-      }
-      
-      toast({ variant: "destructive", title: "خطأ في إنشاء الحساب", description });
-
       // Rollback Auth user if it was created
       if (authUser) {
         try {
@@ -126,9 +125,18 @@ export default function Home() {
           console.log("Rolled back Auth user creation.");
         } catch (deleteError) {
           console.error("Failed to rollback Auth user creation:", deleteError);
-          toast({ variant: "destructive", title: "خطأ فادح", description: "فشل إنشاء الحساب. الرجاء التواصل مع الدعم الفني." });
         }
       }
+
+      let description = "حدث خطأ أثناء إنشاء الحساب.";
+      if (error.code === 'auth/email-already-in-use') {
+        description = "هذا البريد الإلكتروني مستخدم بالفعل.";
+      } else if (error.code === 'permission-denied') {
+        description = "ليس لديك الصلاحية لإنشاء هذا الحساب. قد تكون هناك مشكلة في قواعد الأمان."
+      }
+      
+      toast({ variant: "destructive", title: "خطأ في إنشاء الحساب", description });
+
       return false;
     }
   };
