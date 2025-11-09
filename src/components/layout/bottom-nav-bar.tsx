@@ -40,7 +40,7 @@ const BottomNavBar = <T extends string>({ items, activeView, setView }: BottomNa
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 h-20 bg-background/80 backdrop-blur-lg border-t border-border shadow-[0_-1px_10px_rgba(0,0,0,0.05)]">
+    <nav className="fixed bottom-0 left-0 right-0 h-20 bg-background/80 backdrop-blur-lg border-t border-border shadow-[0_-1px_10px_rgba(0,0,0,0.05)] z-40">
       <div className="flex justify-around items-center h-full max-w-lg mx-auto">
         {items.map((item) => {
           const Icon = icons[item.icon];
