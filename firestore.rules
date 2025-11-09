@@ -33,11 +33,6 @@ service cloud.firestore {
       return request.auth != null && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
 
-    // Unused function to force rules re-deployment.
-    function isNotAdmin() {
-      return !isAdmin();
-    }
-
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
@@ -47,24 +42,24 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Force re-deployment to ensure public access is correctly applied.
     match /gameOffers/{gameOfferId} {
       allow get, list: if true;
       allow create, update, delete: if isAdmin();
     }
-
-    match /users/{userId}/userGameOffers/{userGameOfferId} {
-      allow get, list, delete: if isOwner(userId);
+    
+    // This allows admins to query the collection group
+    match /{path=**}/userGameOffers/{offerId} {
+      allow get, list, delete: if isOwner(request.resource.data.userId);
       // User can create their own purchase records
-      allow create: if isOwner(userId) && request.resource.data.userId == userId;
-      // User can't update past purchases, but admin can
+      allow create: if isOwner(request.resource.data.userId);
+      // Allow admin to update the status of any order
       allow update: if isAdmin();
     }
+
 
      match /roles_admin/{userId} {
        allow get: if true;
        allow list: if isAdmin();
-       // This rule is intentionally set to isOwner to ensure proper user-based admin requests.
        allow create: if isOwner(userId);
        allow delete: if isAdmin();
        allow update: if false;

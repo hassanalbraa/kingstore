@@ -79,6 +79,12 @@
           "type": "string",
           "description": "Reference to User."
         },
+        "username": {
+          "type": "string"
+        },
+        "walletId": {
+          "type": "string"
+        },
         "gameOfferId": {
           "type": "string",
           "description": "Reference to GameOffer."
@@ -104,6 +110,8 @@
       "required": [
         "id",
         "userId",
+        "username",
+        "walletId",
         "gameOfferId",
         "gameName",
         "offerName",
@@ -154,23 +162,14 @@
         }
       },
       {
-        "path": "users/{userId}/userGameOffers/{userGameOfferId}",
+        "path": "userGameOffers",
+        "collectionGroup": true,
         "definition": {
           "entityName": "UserGameOffer",
           "schema": {
             "$ref": "#/backend/entities/UserGameOffer"
           },
-          "description": "Stores the relationship between users and game offers.  Path based ownership is used. The 'userId' parameter represents the user who owns the relationship, and 'userGameOfferId' uniquely identifies the specific relationship.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user."
-            },
-            {
-              "name": "userGameOfferId",
-              "description": "The unique identifier of the user game offer."
-            }
-          ]
+          "description": "A collection group of all user game offers across all users."
         }
       },
       {
@@ -193,5 +192,3 @@
     "reasoning": "The Firestore data structure is designed to support the KING STORE application's features, focusing on user authentication, game offer management, and admin functionalities. The structure prioritizes authorization independence, clarity, and scalability. It avoids hierarchical authorization dependencies by denormalizing necessary authorization data. Structural segregation ensures that collections have a homogeneous security posture, simplifying security rules.  \n\nThe `users` collection stores user profiles.  Admin privileges are managed via a separate `roles_admin` collection, ensuring that checking for admin status relies on document existence, and not on mutable data within the user document itself.  This provides a more robust and reliable authorization mechanism. The `gameOffers` collection stores information about available game offers.  The `users/{userId}/userGameOffers` collection stores relationships between users and the game offers they have purchased. This structure enable path-based ownership, making security rules simple and efficient.\n\nThis structure achieves authorization independence by avoiding `get()` calls in security rules. For example, checking if a user is an admin is done by checking for the existence of a document in the `roles_admin/{userId}` collection, rather than reading a field from the user's document.  This ensures atomic operations and simplifies debugging.\n\nThe structure supports the required QAPs by using structural segregation and path-based ownership.  For instance, listing game offers is done directly from the `gameOffers` collection, which has a uniform security posture. Access to `userGameOffers` is controlled by the `userId` in the path, ensuring that only the user can access their own game offers."
   }
 }
-
-    

@@ -1,4 +1,5 @@
 
+
 export interface User {
   id: string;
   username: string;
@@ -20,6 +21,8 @@ export interface Offer {
 export interface UserGameOffer {
   id: string;
   userId: string;
+  username: string;
+  walletId: string;
   gameOfferId: string;
   gameName: string;
   offerName: string;

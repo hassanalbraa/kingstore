@@ -1,16 +1,17 @@
 
+
 "use client";
 
 import { useState, useMemo } from 'react';
 import type { User, Offer, UserGameOffer } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
-import { collection, runTransaction, doc } from 'firebase/firestore';
+import { collection, runTransaction, doc, query, orderBy } from 'firebase/firestore';
 import { CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import OfferCard from './offer-card';
 import GameCard from './game-card';
-import { Settings, LogOut, Copy, ArrowRight, Loader2 } from 'lucide-react';
+import { Settings, LogOut, Copy, ArrowRight, Loader2, ListOrdered, ShoppingCart } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -21,7 +22,11 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/alert-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { format } from 'date-fns';
 
 interface UserDashboardProps {
   user: User;
@@ -38,6 +43,12 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
   
   const offersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'gameOffers') : null, [firestore]);
   const { data: gameOffers, isLoading: offersLoading } = useCollection<Offer>(offersQuery);
+
+  const myOrdersQuery = useMemoFirebase(() => 
+    firestore && user ? query(collection(firestore, `users/${user.id}/userGameOffers`), orderBy('createdAt', 'desc')) : null
+  , [firestore, user]);
+  const { data: myOrders, isLoading: ordersLoading } = useCollection<UserGameOffer>(myOrdersQuery);
+
 
   const groupedOffers = useMemo(() => {
     if (!gameOffers) return {};
@@ -83,7 +94,8 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
                 throw "المستخدم غير موجود!";
             }
 
-            const newBalance = userDoc.data().balance - selectedOffer.price;
+            const currentBalance = userDoc.data().balance;
+            const newBalance = currentBalance - selectedOffer.price;
             if (newBalance < 0) {
               throw "رصيد غير كافٍ!";
             }
@@ -92,6 +104,8 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
 
             const newPurchase: Omit<UserGameOffer, 'id'> = {
               userId: user.id,
+              username: user.username,
+              walletId: user.walletId,
               gameOfferId: selectedOffer.id,
               gameName: selectedOffer.gameName,
               offerName: selectedOffer.offerName,
@@ -121,7 +135,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
   };
 
 
-  const renderContent = () => {
+  const renderOffersContent = () => {
     if (offersLoading) {
       return (
         <div className="flex justify-center items-center p-10">
@@ -170,6 +184,63 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
       </div>
     );
   };
+  
+  const getStatusBadge = (status: 'pending' | 'completed' | 'failed') => {
+    switch (status) {
+        case 'pending':
+            return <Badge variant="secondary">قيد التنفيذ</Badge>;
+        case 'completed':
+            return <Badge>مكتمل</Badge>;
+        case 'failed':
+            return <Badge variant="destructive">فشل</Badge>;
+        default:
+            return <Badge variant="outline">غير معروف</Badge>;
+    }
+  };
+
+  const renderOrdersContent = () => {
+    if (ordersLoading) {
+       return (
+        <div className="flex justify-center items-center p-10">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="mr-4">جاري تحميل طلباتك...</p>
+        </div>
+      );
+    }
+
+    return (
+       <div className="rounded-lg border mt-4">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>العرض</TableHead>
+              <TableHead>السعر</TableHead>
+              <TableHead>التاريخ</TableHead>
+              <TableHead>الحالة</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {myOrders && myOrders.length > 0 ? (
+              myOrders.map((order) => (
+                <TableRow key={order.id}>
+                  <TableCell className="font-medium">{order.offerName}</TableCell>
+                  <TableCell>{order.price.toFixed(2)} ج.س</TableCell>
+                  <TableCell>
+                    {order.createdAt ? format(new Date(order.createdAt.seconds * 1000), 'dd/MM/yyyy hh:mm a') : 'N/A'}
+                  </TableCell>
+                  <TableCell>{getStatusBadge(order.status)}</TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center">ليس لديك أي طلبات سابقة.</TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    )
+  }
 
   return (
     <>
@@ -196,8 +267,19 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
         </div>
       </CardHeader>
       <Separator />
-      <CardContent className="pt-6 space-y-8">
-        {renderContent()}
+      <CardContent className="pt-6">
+         <Tabs defaultValue="offers" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="offers"><ShoppingCart className="ml-1"/> العروض</TabsTrigger>
+              <TabsTrigger value="orders"><ListOrdered className="ml-1" /> طلباتي</TabsTrigger>
+            </TabsList>
+            <TabsContent value="offers">
+              {renderOffersContent()}
+            </TabsContent>
+            <TabsContent value="orders">
+              {renderOrdersContent()}
+            </TabsContent>
+          </Tabs>
       </CardContent>
 
       <AlertDialog open={!!selectedOffer} onOpenChange={(open) => !open && setSelectedOffer(null)}>
