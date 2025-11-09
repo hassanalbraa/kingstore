@@ -47,15 +47,17 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
     
-    // This allows admins to query the collection group
-    match /{path=**}/userGameOffers/{offerId} {
-      allow get, list, delete: if isOwner(request.resource.data.userId);
-      // User can create their own purchase records
-      allow create: if isOwner(request.resource.data.userId);
-      // Allow admin to update the status of any order
-      allow update: if isAdmin();
+    // Rule for a user to access their OWN game offers subcollection
+    match /users/{userId}/userGameOffers/{offerId} {
+      allow get, list, create, delete: if isOwner(userId);
     }
-
+    
+    // Rule for ADMINS to query the collection group of all userGameOffers
+    match /{path=**}/userGameOffers/{offerId} {
+      // Admins can read any order and update its status.
+      // Users cannot use this rule.
+      allow get, list, update: if isAdmin();
+    }
 
      match /roles_admin/{userId} {
        allow get: if true;
