@@ -3,7 +3,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import type { User, Offer, UserGameOffer } from '@/lib/types';
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, useUser } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, useUser, useDoc } from '@/firebase';
 import { collection, doc, getDocs, query, where, runTransaction, updateDoc, collectionGroup } from 'firebase/firestore';
 import { CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,36 +30,42 @@ interface FundingSuccessInfo {
 
 const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
   const firestore = useFirestore();
-  const { user: adminUser } = useUser();
+  const { user: authUser } = useUser();
   const { toast } = useToast();
 
-  // Fetch ALL users, we will filter out the admin on the client-side.
-  // This avoids complex queries that require indexes and permission issues.
-  const usersQuery = useMemoFirebase(() => {
-    if (firestore && adminUser?.role === 'admin') {
-        return collection(firestore, 'users');
+  // Step 1: Get the current user's document from Firestore to check their role.
+  const currentUserDocRef = useMemoFirebase(() => {
+    if (firestore && authUser) {
+        return doc(firestore, 'users', authUser.uid);
     }
     return null;
-  }, [firestore, adminUser]);
-  const { data: allUsers, isLoading: usersLoading } = useCollection<User>(usersQuery);
+  }, [firestore, authUser]);
+  const { data: currentUser, isLoading: isCurrentUserLoading } = useDoc<User>(currentUserDocRef);
   
-  // Client side filtering for display
-  const displayUsers = useMemo(() => allUsers?.filter(u => u.role === 'user'), [allUsers]);
+  const isCurrentUserAdmin = useMemo(() => currentUser?.role === 'admin', [currentUser]);
+
+  // Step 2: Fetch all other users only if the current user is an admin.
+  const usersQuery = useMemoFirebase(() => {
+    if (firestore && isCurrentUserAdmin) {
+        return query(collection(firestore, 'users'), where('role', '==', 'user'));
+    }
+    return null;
+  }, [firestore, isCurrentUserAdmin]);
+  const { data: displayUsers, isLoading: usersLoading } = useCollection<User>(usersQuery);
 
   const offersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'gameOffers') : null, [firestore]);
   const { data: offers, isLoading: offersLoading, error: offersError } = useCollection<Offer>(offersQuery);
 
-  // Return to the more efficient collectionGroup query, as the security rules now support it.
-  // A composite index will be required. Firebase will provide a link in the console to create it.
+  // Step 3: Fetch pending orders using collectionGroup if the user is an admin.
   const pendingOrdersQuery = useMemoFirebase(() => {
-    if (firestore && adminUser?.role === 'admin') {
+    if (firestore && isCurrentUserAdmin) {
       return query(
         collectionGroup(firestore, 'userGameOffers'),
         where('status', '==', 'pending')
       );
     }
     return null;
-  }, [firestore, adminUser]);
+  }, [firestore, isCurrentUserAdmin]);
 
   const { data: pendingOrders, isLoading: ordersLoading } = useCollection<UserGameOffer>(pendingOrdersQuery);
   
@@ -124,7 +130,7 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
         await addDocumentNonBlocking(offersCollection, {
             gameName: newGameName,
             offerName: newOfferName,
-            price: price,
+            price: Math.round(price),
             unit: newUnit,
         });
 
@@ -233,7 +239,7 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
       return;
     }
     const offerDocRef = doc(firestore, 'gameOffers', offerId);
-    updateDoc(offerDocRef, { price: newPriceValue });
+    updateDoc(offerDocRef, { price: Math.round(newPriceValue) });
     setEditingOfferId(null);
     toast({ title: 'نجاح', description: 'تم تحديث سعر العرض.' });
   };
@@ -275,6 +281,10 @@ const renderOrdersContent = () => {
            <p className="mr-4">جاري تحميل الطلبات الجديدة...</p>
          </div>
        );
+    }
+
+    if (!isCurrentUserAdmin) {
+      return <p className="text-center text-destructive p-4">ليس لديك صلاحية عرض هذه البيانات.</p>
     }
 
     if (!pendingOrders || pendingOrders.length === 0) {
@@ -398,6 +408,27 @@ const renderOrdersContent = () => {
     }
 };
 
+  if (isCurrentUserLoading) {
+    return (
+      <div className="flex justify-center items-center p-10">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!isCurrentUserAdmin) {
+    return (
+       <CardContent>
+          <div className="text-center p-10">
+            <h3 className="text-xl font-bold text-destructive">وصول مرفوض</h3>
+            <p className="text-muted-foreground mt-2">ليس لديك صلاحيات الأدمن للوصول لهذه الصفحة.</p>
+             <Button onClick={onLogout} className="mt-4">
+                تسجيل الخروج
+            </Button>
+          </div>
+       </CardContent>
+    );
+  }
 
   return (
     <>

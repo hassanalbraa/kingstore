@@ -3,23 +3,41 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // WARNING: These rules are temporarily permissive for debugging.
-    // They allow any authenticated user to read and write all data.
-    // This is NOT secure for a production environment.
-
     function isOwner(userId) {
       return request.auth != null && request.auth.uid == userId;
     }
     
     function isAdmin() {
-      // Admin check still relies on the existence of a document in roles_admin
       return request.auth != null && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
 
-    // Allow any authenticated user to read/write any document.
-    // This will be refined later.
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+    match /users/{userId} {
+      allow get, update: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin(); 
+      allow create: if isOwner(userId);
+      allow delete: if isAdmin();
+
+      // Rules for the subcollection
+      match /userGameOffers/{userGameOfferId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
     }
+
+    match /gameOffers/{gameOfferId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // This rule allows an admin to query across all userGameOffers subcollections
+    match /{path=**}/userGameOffers/{userGameOfferId} {
+       allow read, update: if isAdmin();
+    }
+
+     match /roles_admin/{userId} {
+       allow get: if request.auth != null;
+       allow list, create, delete, update: if isAdmin();
+     }
   }
 }
+
+    
