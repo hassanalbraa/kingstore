@@ -4,81 +4,85 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "User",
       "type": "object",
-      "description": "Represents a user of the KING STORE application.",
+      "description": "Represents a user within the KING STORE application.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the User entity, same as Firebase Auth UID."
-        },
-        "walletId": {
-          "type": "string",
-          "description": "A unique 7-digit numeric string for the user's wallet."
+          "description": "Unique identifier for the User entity."
         },
         "username": {
           "type": "string",
-          "description": "The username of the user."
-        },
-        "email": {
-          "type": "string",
-          "description": "The email address of the user.",
-          "format": "email"
+          "description": "The user's username."
         },
         "balance": {
           "type": "number",
-          "description": "The current balance of the user."
+          "description": "The user's current balance."
         },
         "isAdmin": {
           "type": "boolean",
-          "description": "Indicates whether the user is an administrator."
-        },
-        "role": {
-          "type": "string",
-          "enum": ["user", "admin"]
+          "description": "Indicates whether the user has administrator privileges."
         }
       },
       "required": [
         "id",
-        "walletId",
         "username",
-        "email",
         "balance",
-        "role"
+        "isAdmin"
       ]
     },
     "GameOffer": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "GameOffer",
       "type": "object",
-      "description": "Represents a game offer available in the KING STORE.",
+      "description": "Represents a game offer available to users.",
       "properties": {
         "id": {
           "type": "string",
           "description": "Unique identifier for the GameOffer entity."
         },
-        "gameName": {
+        "name": {
           "type": "string",
-          "description": "The name of the game for which the offer is."
-        },
-        "description": {
-          "type": "string",
-          "description": "A description of the game offer."
+          "description": "The name of the game offer."
         },
         "price": {
           "type": "number",
           "description": "The price of the game offer."
         },
-        "imageUrl": {
+        "description": {
           "type": "string",
-          "description": "URL of the image for the game offer.",
-          "format": "uri"
+          "description": "A description of the game offer."
         }
       },
       "required": [
         "id",
-        "gameName",
-        "description",
+        "name",
         "price",
-        "imageUrl"
+        "description"
+      ]
+    },
+    "UserGameOffer": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserGameOffer",
+      "type": "object",
+      "description": "Represents the relationship between users and game offers (many-to-many).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UserGameOffer entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N UserGameOffer)"
+        },
+        "gameOfferId": {
+          "type": "string",
+          "description": "Reference to GameOffer. (Relationship: GameOffer 1:N UserGameOffer)"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "gameOfferId"
       ]
     }
   },
@@ -91,13 +95,13 @@
   "firestore": {
     "structure": [
       {
-        "path": "/users/{userId}",
+        "path": "users/{userId}",
         "definition": {
           "entityName": "User",
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Stores user profiles.  Accessible only by the user themselves or an admin. Includes the user's profile data.",
+          "description": "Stores user profiles. The 'userId' parameter is the unique identifier for each user.",
           "params": [
             {
               "name": "userId",
@@ -107,13 +111,13 @@
         }
       },
       {
-        "path": "/game_offers/{gameOfferId}",
+        "path": "gameOffers/{gameOfferId}",
         "definition": {
           "entityName": "GameOffer",
           "schema": {
             "$ref": "#/backend/entities/GameOffer"
           },
-          "description": "Stores game offers available in the store. Accessible by all users for reading. Only admins can create, update, or delete offers.",
+          "description": "Stores information about available game offers.  The 'gameOfferId' parameter is the unique identifier for each game offer.",
           "params": [
             {
               "name": "gameOfferId",
@@ -123,13 +127,33 @@
         }
       },
       {
-        "path": "/roles_admin/{userId}",
+        "path": "users/{userId}/userGameOffers/{userGameOfferId}",
+        "definition": {
+          "entityName": "UserGameOffer",
+          "schema": {
+            "$ref": "#/backend/entities/UserGameOffer"
+          },
+          "description": "Stores the relationship between users and game offers.  Path based ownership is used. The 'userId' parameter represents the user who owns the relationship, and 'userGameOfferId' uniquely identifies the specific relationship.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            },
+            {
+              "name": "userGameOfferId",
+              "description": "The unique identifier of the user game offer."
+            }
+          ]
+        }
+      },
+      {
+        "path": "roles_admin/{userId}",
         "definition": {
           "entityName": "User",
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Indicates whether a user has admin privileges. Existence of a document grants admin rights.",
+          "description": "Collection to store user IDs with admin roles. Existence of document implies user has admin privileges.",
           "params": [
             {
               "name": "userId",
@@ -139,6 +163,6 @@
         }
       }
     ],
-    "reasoning": "The Firestore structure is designed to be secure, scalable, and easily debuggable, following the core design principles and strategy mandates. It primarily focuses on authorization independence and structural segregation to simplify security rules and ensure data integrity.\n\n*   **Authorization Independence:** This is achieved by avoiding hierarchical authorization dependencies (`get()` calls). For example, the admin status of a user is checked directly against the `/roles_admin/{userId}` collection rather than relying on data from the `/users/{userId}` document. This allows atomic operations and simplifies debugging.\n*   **Structural Segregation:** Documents with different access requirements are stored in separate collections. For instance, user profiles are stored under `/users/{userId}`, and game offers are stored in the `/game_offers` collection.\n*   **Access Modeling:** User data is stored under path-based ownership (`/users/{userId}`). Admin roles are managed via document existence in a dedicated collection (`/roles_admin/{userId}`).\n*   **QAPs (Rules are not Filters):** The structure enables secure `list` operations. For instance, listing game offers is straightforward as all documents in `/game_offers` share the same security posture. Admin status is determined by the existence of a document in `/roles_admin/{userId}`, which can be efficiently checked.\n\nDenormalization isn't explicitly required here, but if `GameOffer` documents needed to associate with specific users (e.g., user-created offers), then the user ID and potentially their role would be denormalized into the `GameOffer` documents to avoid `get()` calls in security rules.\n\nThis structure ensures that security rules are simple, robust, and easily debuggable, minimizing complexity and maximizing security."
+    "reasoning": "The Firestore data structure is designed to support the KING STORE application's features, focusing on user authentication, game offer management, and admin functionalities. The structure prioritizes authorization independence, clarity, and scalability. It avoids hierarchical authorization dependencies by denormalizing necessary authorization data. Structural segregation ensures that collections have a homogeneous security posture, simplifying security rules.  \n\nThe `users` collection stores user profiles.  Admin privileges are managed via a separate `roles_admin` collection, ensuring that checking for admin status relies on document existence, and not on mutable data within the user document itself.  This provides a more robust and reliable authorization mechanism. The `gameOffers` collection stores information about available game offers.  The `users/{userId}/userGameOffers` collection stores relationships between users and the game offers they have purchased. This structure enable path-based ownership, making security rules simple and efficient.\n\nThis structure achieves authorization independence by avoiding `get()` calls in security rules. For example, checking if a user is an admin is done by checking for the existence of a document in the `roles_admin/{userId}` collection, rather than reading a field from the user's document.  This ensures atomic operations and simplifies debugging.\n\nThe structure supports the required QAPs by using structural segregation and path-based ownership.  For instance, listing game offers is done directly from the `gameOffers` collection, which has a uniform security posture. Access to `userGameOffers` is controlled by the `userId` in the path, ensuring that only the user can access their own game offers."
   }
 }

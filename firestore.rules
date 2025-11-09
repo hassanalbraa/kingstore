@@ -1,108 +1,109 @@
-
 /**
- * @fileoverview Firestore Security Rules for KING STORE.
+ * @fileoverview Firestore Security Rules for KING STORE application.
  *
  * Core Philosophy:
- * This ruleset enforces a user-ownership model for user profiles and restricts write access to game offers to admins only.
- * Read access to game offers is public.
+ * This ruleset enforces a strict user-ownership model for user profiles and user-specific data.
+ * Administrative privileges are managed through a separate collection, ensuring clear separation of concerns.
+ * Game offers are publicly accessible, but their management is restricted.
  *
  * Data Structure:
- * - /users/{userId}: Stores user profile data.
- * - /game_offers/{gameOfferId}: Stores game offers.
- * - /roles_admin/{userId}: Indicates admin privileges based on document existence.
+ * - /users/{userId}: Stores user profiles, accessible only by the user themselves.
+ * - /gameOffers/{gameOfferId}: Stores publicly accessible game offers.
+ * - /users/{userId}/userGameOffers/{userGameOfferId}: Stores the relationships between users and purchased game offers, accessible only by the user.
+ * - /roles_admin/{userId}: Indicates users with admin privileges. Document existence grants admin rights.
  *
  * Key Security Decisions:
- * - User profiles are accessible only by the user themselves or an admin.
- * - Game offers are publicly readable, but only admins can create, update, or delete them.
- * - Admin status is determined by the existence of a document in `/roles_admin/{userId}`.
- * - No user listing is allowed for the /users collection to protect user privacy.
+ * - User listing is disallowed to protect user privacy.
+ * - Admin status is determined by document existence in `/roles_admin/{userId}`.
+ * - Ambiguous relationships default to strict owner-only access.
  *
  * Denormalization for Authorization:
- * Admin status is managed via document existence in `/roles_admin/{userId}` to avoid needing to read user profile data for authorization.
+ * - Admin status is denormalized into the `roles_admin` collection to avoid `get()` calls in security rules.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to user profile data.
+     * @description Controls access to user profiles.
      * @path /users/{userId}
-     * @allow (get, create, update, delete) if the user is the owner of the profile (request.auth.uid == userId)
-     * @deny (get, create, update, delete) if the user is not the owner of the profile.
-     * @principle Enforces document ownership and protects user data.
+     * @allow (create) - User with ID 'user123' can create their profile.
+     *    - auth.uid: 'user123'
+     *    - resource.data: { id: 'user123', username: 'testuser', balance: 0, isAdmin: false }
+     * @allow (get, update, delete) - User with ID 'user123' can access their profile.
+     *    - auth.uid: 'user123'
+     * @deny (create) - User with ID 'user456' cannot create a profile for 'user123'.
+     *    - auth.uid: 'user456'
+     *    - resource.data: { id: 'user123', username: 'testuser', balance: 0, isAdmin: false }
+     * @deny (get, update, delete) - User with ID 'user456' cannot access 'user123' profile.
+     *    - auth.uid: 'user456'
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId} {
-      // Allow the user to read their own profile.
-      allow get: if isOwner(userId);
-      // Allow user to create their own profile if the auth'd user's id matches the id in the document
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      // Only the owner can update their profile.
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      // Only the owner can delete their profile.
-      allow delete: if isExistingOwner(userId);
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
 
-      // No listing of all users.  This protects privacy.
+      allow get: if isOwner(userId);
       allow list: if false;
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
      * @description Controls access to game offers.
-     * @path /game_offers/{gameOfferId}
-     * @allow (get, list) if true (publicly readable)
-     * @allow (create, update, delete) if the user is an admin.
-     * @deny (create, update, delete) if the user is not an admin.
-     * @principle Enforces public read access with admin-only write access.
+     * @path /gameOffers/{gameOfferId}
+     * @allow (get, list) - Any user can read game offer details.
+     * @deny (create, update, delete) - Only admins can manage game offers.
+     * @principle Game offers are publicly readable, writes restricted to admins.
      */
-    match /game_offers/{gameOfferId} {
-      // Allow anyone to read and list game offers.
+    match /gameOffers/{gameOfferId} {
       allow get, list: if true;
-      // Allow create, update, and delete only for admins.
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow create: if exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      allow update: if exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid)) && resource != null;
+      allow delete: if exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid)) && resource != null;
     }
 
     /**
-     * @description Manages admin roles. Document existence grants admin rights.
-     * @path /roles_admin/{userId}
-     * @allow (get, create, delete) if isAdmin() or isOwner(userId) for create
-     * @deny (get, create, delete) if not allowed.
-     * @principle Manages admin roles based on document existence.
+     * @description Controls access to user game offers (junction table between users and game offers).
+     * @path /users/{userId}/userGameOffers/{userGameOfferId}
+     * @allow (create, get, update, delete) - Only the user can manage their own game offers.
+     * @deny (create, get, update, delete) - Other users cannot access this data.
+     * @principle Restricts access to a user's own data tree.
      */
-    match /roles_admin/{userId} {
-      // Admins can manage other admins.
-      allow get, delete: if isAdmin();
-      
-      // Allow a user to create their own admin role document. 
-      // The app's client-side logic restricts this to 'admin@king.store'.
-      // Existing admins can also create new admin roles.
-      allow create: if isOwner(userId) || isAdmin();
+    match /users/{userId}/userGameOffers/{userGameOfferId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
 
-      allow update: if false; // No updates allowed, only create and delete for role assignment.
-      
-      allow list: if false; // Prevent listing of admin roles.
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
     }
 
-    // ---- Helper functions ----
-
-    // Checks if the user is signed in.
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    // Checks if the user is the owner of the document, based on the userId in the path.
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-     // Checks if the user is the owner of the EXISTING document, based on the userId in the path.
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
-    }
-
-    // Checks if the user is an admin by checking for the existence of a document in /roles_admin/{userId}.
-    function isAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
-    }
+     /**
+      * @description Controls access to admin roles.
+      * @path /roles_admin/{userId}
+      * @allow (get) - Any authenticated user can check if they are an admin.
+      * @allow (create, delete) - No one can grant themselves admin access.
+      * @deny (list, update) - Listing and updating are forbidden.
+      * @principle Restricts admin role management.
+      */
+     match /roles_admin/{userId} {
+       allow get: if request.auth.uid == userId;
+       allow list: if false;
+       allow create: if false;
+       allow update: if false;
+       allow delete: if false;
+     }
   }
 }
