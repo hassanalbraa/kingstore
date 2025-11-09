@@ -1,0 +1,135 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the KING STORE application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity."
+        },
+        "username": {
+          "type": "string",
+          "description": "The username of the user."
+        },
+        "email": {
+          "type": "string",
+          "description": "The email address of the user.",
+          "format": "email"
+        },
+        "balance": {
+          "type": "number",
+          "description": "The current balance of the user."
+        },
+        "isAdmin": {
+          "type": "boolean",
+          "description": "Indicates whether the user is an administrator."
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "email",
+        "balance",
+        "isAdmin"
+      ]
+    },
+    "GameOffer": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "GameOffer",
+      "type": "object",
+      "description": "Represents a game offer available in the KING STORE.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the GameOffer entity."
+        },
+        "gameName": {
+          "type": "string",
+          "description": "The name of the game for which the offer is."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the game offer."
+        },
+        "price": {
+          "type": "number",
+          "description": "The price of the game offer."
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "URL of the image for the game offer.",
+          "format": "uri"
+        }
+      },
+      "required": [
+        "id",
+        "gameName",
+        "description",
+        "price",
+        "imageUrl"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profiles.  Accessible only by the user themselves or an admin. Includes the user's profile data.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/game_offers/{gameOfferId}",
+        "definition": {
+          "entityName": "GameOffer",
+          "schema": {
+            "$ref": "#/backend/entities/GameOffer"
+          },
+          "description": "Stores game offers available in the store. Accessible by all users for reading. Only admins can create, update, or delete offers.",
+          "params": [
+            {
+              "name": "gameOfferId",
+              "description": "The unique identifier of the game offer."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Indicates whether a user has admin privileges. Existence of a document grants admin rights.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to be secure, scalable, and easily debuggable, following the core design principles and strategy mandates. It primarily focuses on authorization independence and structural segregation to simplify security rules and ensure data integrity.\n\n*   **Authorization Independence:** This is achieved by avoiding hierarchical authorization dependencies (`get()` calls). For example, the admin status of a user is checked directly against the `/roles_admin/{userId}` collection rather than relying on data from the `/users/{userId}` document. This allows atomic operations and simplifies debugging.\n*   **Structural Segregation:** Documents with different access requirements are stored in separate collections. For instance, user profiles are stored under `/users/{userId}`, and game offers are stored in the `/game_offers` collection.\n*   **Access Modeling:** User data is stored under path-based ownership (`/users/{userId}`). Admin roles are managed via document existence in a dedicated collection (`/roles_admin/{userId}`).\n*   **QAPs (Rules are not Filters):** The structure enables secure `list` operations. For instance, listing game offers is straightforward as all documents in `/game_offers` share the same security posture. Admin status is determined by the existence of a document in `/roles_admin/{userId}`, which can be efficiently checked.\n\nDenormalization isn't explicitly required here, but if `GameOffer` documents needed to associate with specific users (e.g., user-created offers), then the user ID and potentially their role would be denormalized into the `GameOffer` documents to avoid `get()` calls in security rules.\n\nThis structure ensures that security rules are simple, robust, and easily debuggable, minimizing complexity and maximizing security."
+  }
+}

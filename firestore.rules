@@ -1,0 +1,103 @@
+/**
+ * @fileoverview Firestore Security Rules for KING STORE.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a user-ownership model for user profiles and restricts write access to game offers to admins only.
+ * Read access to game offers is public.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores user profile data.
+ * - /game_offers/{gameOfferId}: Stores game offers.
+ * - /roles_admin/{userId}: Indicates admin privileges based on document existence.
+ *
+ * Key Security Decisions:
+ * - User profiles are accessible only by the user themselves or an admin.
+ * - Game offers are publicly readable, but only admins can create, update, or delete them.
+ * - Admin status is determined by the existence of a document in `/roles_admin/{userId}`.
+ * - No user listing is allowed for the /users collection to protect user privacy.
+ *
+ * Denormalization for Authorization:
+ * Admin status is managed via document existence in `/roles_admin/{userId}` to avoid needing to read user profile data for authorization.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Controls access to user profile data.
+     * @path /users/{userId}
+     * @allow (get, create, update, delete) if the user is the owner of the profile (request.auth.uid == userId)
+     * @deny (get, create, update, delete) if the user is not the owner of the profile.
+     * @principle Enforces document ownership and protects user data.
+     */
+    match /users/{userId} {
+      // Allow the user to read their own profile.
+      allow get: if isOwner(userId);
+      // Only the owner can create their profile, and the userId must match the auth.uid
+      allow create: if isOwner(userId) && request.resource.data.id == request.auth.uid;
+      // Only the owner can update their profile.
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      // Only the owner can delete their profile.
+      allow delete: if isExistingOwner(userId);
+
+      // No listing of all users.  This protects privacy.
+      allow list: if false;
+    }
+
+    /**
+     * @description Controls access to game offers.
+     * @path /game_offers/{gameOfferId}
+     * @allow (get, list) if true (publicly readable)
+     * @allow (create, update, delete) if the user is an admin.
+     * @deny (create, update, delete) if the user is not an admin.
+     * @principle Enforces public read access with admin-only write access.
+     */
+    match /game_offers/{gameOfferId} {
+      // Allow anyone to read and list game offers.
+      allow get, list: if true;
+      // Allow create, update, and delete only for admins.
+      allow create: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
+    }
+
+    /**
+     * @description Manages admin roles. Document existence grants admin rights.
+     * @path /roles_admin/{userId}
+     * @allow (get, create, delete) if isAdmin()
+     * @deny (get, create, delete) if not isAdmin()
+     * @principle Manages admin roles based on document existence.
+     */
+    match /roles_admin/{userId} {
+      // Only admins can create, get, or delete admin roles.
+      allow get: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if false; // No updates allowed, only create and delete for role assignment.
+      allow delete: if isAdmin();
+
+      allow list: if false; // Prevent listing of admin roles.
+    }
+
+    // ---- Helper functions ----
+
+    // Checks if the user is signed in.
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Checks if the user is the owner of the document, based on the userId in the path.
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+     // Checks if the user is the owner of the EXISTING document, based on the userId in the path.
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    // Checks if the user is an admin by checking for the existence of a document in /roles_admin/{userId}.
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+  }
+}
