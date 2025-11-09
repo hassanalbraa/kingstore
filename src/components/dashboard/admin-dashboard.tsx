@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { User, Offer, UserGameOffer } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, useUser } from '@/firebase';
 import { collection, doc, getDocs, query, where, runTransaction, updateDoc, collectionGroup } from 'firebase/firestore';
@@ -45,12 +45,50 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
   const offersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'gameOffers') : null, [firestore]);
   const { data: offers, isLoading: offersLoading, error: offersError } = useCollection<Offer>(offersQuery);
 
-  const pendingOrdersQuery = useMemoFirebase(() => 
-    firestore && adminUser?.role === 'admin' 
-    ? query(collectionGroup(firestore, 'userGameOffers'), where('status', '==', 'pending')) 
-    : null
-  , [firestore, adminUser]);
-  const { data: pendingOrders, isLoading: ordersLoading } = useCollection<UserGameOffer>(pendingOrdersQuery);
+  const [pendingOrders, setPendingOrders] = useState<UserGameOffer[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+
+  useEffect(() => {
+      const fetchPendingOrders = async () => {
+          if (!firestore || !users || users.length === 0) {
+              setOrdersLoading(false);
+              return;
+          }
+
+          setOrdersLoading(true);
+          const allPendingOrders: UserGameOffer[] = [];
+          
+          try {
+              for (const user of users) {
+                  const ordersRef = collection(firestore, 'users', user.id, 'userGameOffers');
+                  const q = query(ordersRef, where('status', '==', 'pending'));
+                  const querySnapshot = await getDocs(q);
+                  querySnapshot.forEach((doc) => {
+                      allPendingOrders.push({ id: doc.id, ...doc.data() } as UserGameOffer);
+                  });
+              }
+              // Sort by creation date, newest first
+              allPendingOrders.sort((a, b) => {
+                 const dateA = a.createdAt as any;
+                 const dateB = b.createdAt as any;
+                 return dateB.seconds - dateA.seconds;
+              });
+              setPendingOrders(allPendingOrders);
+          } catch (error) {
+              console.error("Error fetching pending orders:", error);
+              toast({ variant: 'destructive', title: 'خطأ', description: 'فشل تحميل الطلبات المعلقة.' });
+          } finally {
+              setOrdersLoading(false);
+          }
+      };
+
+      // Fetch orders when the list of users is available
+      if (!usersLoading) {
+        fetchPendingOrders();
+      }
+
+  }, [users, firestore, usersLoading, toast]);
+
   
   const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
   const [tempPrice, setTempPrice] = useState('');
@@ -233,6 +271,10 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
     try {
         const orderRef = doc(firestore, 'users', order.userId, 'userGameOffers', order.id);
         await updateDoc(orderRef, { status: 'completed' });
+
+        // Optimistically update the UI
+        setPendingOrders(prevOrders => prevOrders.filter(o => o.id !== order.id));
+        
         toast({ title: "تم!", description: "تم تحديث حالة الطلب إلى مكتمل." });
     } catch (error) {
         console.error("Error completing order: ", error);
@@ -548,4 +590,6 @@ const renderOrdersContent = () => {
 };
 
 export default AdminDashboard;
+    
+
     
