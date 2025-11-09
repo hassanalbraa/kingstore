@@ -145,10 +145,16 @@
             "$ref": "#/backend/entities/User"
           },
           "description": "Stores user profiles. The 'userId' parameter is the unique identifier for each user.",
-          "params": [
+          "collections": [
             {
-              "name": "userId",
-              "description": "The unique identifier of the user."
+              "path": "userGameOffers/{userGameOfferId}",
+              "definition": {
+                "entityName": "UserGameOffer",
+                "schema": {
+                  "$ref": "#/backend/entities/UserGameOffer"
+                },
+                "description": "A sub-collection storing the game offers purchased by this specific user."
+              }
             }
           ]
         }
@@ -160,23 +166,7 @@
           "schema": {
             "$ref": "#/backend/entities/GameOffer"
           },
-          "description": "Stores information about available game offers.  The 'gameOfferId' parameter is the unique identifier for each game offer.",
-          "params": [
-            {
-              "name": "gameOfferId",
-              "description": "The unique identifier of the game offer."
-            }
-          ]
-        }
-      },
-      {
-        "path": "userGameOffers/{userGameOfferId}",
-        "definition": {
-          "entityName": "UserGameOffer",
-          "schema": {
-            "$ref": "#/backend/entities/UserGameOffer"
-          },
-          "description": "A collection storing all user game offers."
+          "description": "Stores information about available game offers.  The 'gameOfferId' parameter is the unique identifier for each game offer."
         }
       },
       {
@@ -186,16 +176,12 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Collection to store user IDs with admin roles. Existence of document implies user has admin privileges.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user."
-            }
-          ]
+          "description": "Collection to store user IDs with admin roles. Existence of document implies user has admin privileges."
         }
       }
     ],
-    "reasoning": "The Firestore data structure is designed to support the KING STORE application's features, focusing on user authentication, game offer management, and admin functionalities. The structure prioritizes authorization independence, clarity, and scalability. It avoids hierarchical authorization dependencies by denormalizing necessary authorization data. Structural segregation ensures that collections have a homogeneous security posture, simplifying security rules.  \n\nThe `users` collection stores user profiles.  Admin privileges are managed via a separate `roles_admin` collection, ensuring that checking for admin status relies on document existence, and not on mutable data within the user document itself.  This provides a more robust and reliable authorization mechanism. The `gameOffers` collection stores information about available game offers.  The `userGameOffers` collection is a root-level collection to store all purchase orders. This makes it easier for admins to query all orders across all users using a collection group query, while users will query their own orders via a `where('userId', '==', auth.uid)` clause.\n\nThis structure achieves authorization independence by avoiding `get()` calls in security rules. For example, checking if a user is an admin is done by checking for the existence of a document in the `roles_admin/{userId}` collection, rather than reading a field from the user's document.  This ensures atomic operations and simplifies debugging."
+    "reasoning": "The Firestore data structure is designed to support the KING STORE application's features, focusing on user authentication, game offer management, and admin functionalities. The structure prioritizes authorization independence, clarity, and scalability. It avoids hierarchical authorization dependencies by denormalizing necessary authorization data. Structural segregation ensures that collections have a homogeneous security posture, simplifying security rules.  \n\nThe `users` collection stores user profiles.  Admin privileges are managed via a separate `roles_admin` collection, ensuring that checking for admin status relies on document existence, and not on mutable data within the user document itself.  This provides a more robust and reliable authorization mechanism. The `gameOffers` collection stores information about available game offers.  The `userGameOffers` collection is a sub-collection under each user, ensuring data ownership is explicit in the path, which dramatically simplifies security rules. Admins can query all orders across all users using a collection group query, which is secured by a separate rule."
   }
 }
+
+    

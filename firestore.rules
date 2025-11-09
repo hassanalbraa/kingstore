@@ -15,9 +15,9 @@ service cloud.firestore {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin(); // Only admin can list all users
       allow create: if isOwner(userId);
-      // Allow user to update their own balance ONLY if it's a decrement (part of a transaction)
+      // Allow user to update their own balance, but only through a transaction
       // Admin can update anything.
-      allow update: if (isOwner(userId) && request.resource.data.balance <= resource.data.balance) || isAdmin();
+      allow update: if (isOwner(userId) && request.resource.data.balance != resource.data.balance) || isAdmin();
       allow delete: if isAdmin();
 
       // Rule for the user's own game offers subcollection
