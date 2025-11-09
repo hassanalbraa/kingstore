@@ -1,0 +1,45 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return request.auth != null && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId);
+      // Allow user to update their own balance downwards (spending), or admin to do anything.
+      allow update: if (isOwner(userId) && request.resource.data.balance <= resource.data.balance) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /gameOffers/{gameOfferId} {
+      // Allow anyone to read game offers
+      allow get, list: if true;
+      // Only admins can create, update, or delete offers
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /users/{userId}/userGameOffers/{userGameOfferId} {
+      // User can do anything to their own offers, except update status
+      allow get, list, create, delete: if isOwner(userId);
+      // User can't change the status of their own order.
+      allow update: if isAdmin(); 
+    }
+
+     match /roles_admin/{userId} {
+       allow get: if true;
+       allow list, create, delete: if isAdmin();
+       allow update: if false;
+     }
+  }
+}
+
+    

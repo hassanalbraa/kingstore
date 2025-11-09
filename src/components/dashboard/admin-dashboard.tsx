@@ -4,20 +4,17 @@
 import { useState, useMemo } from 'react';
 import type { User, Offer, UserGameOffer } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, useUser } from '@/firebase';
-import { collection, doc, getDocs, query, where, runTransaction, updateDoc, collectionGroup, orderBy } from 'firebase/firestore';
+import { collection, doc, getDocs, query, where, runTransaction, updateDoc } from 'firebase/firestore';
 import { CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { LogOut, Edit, Save, XCircle, Loader2, PlusCircle, Copy, Database, Gift, CheckCircle } from 'lucide-react';
+import { LogOut, Edit, Save, XCircle, Loader2, PlusCircle, Copy, Database, Gift } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { seedGameOffers } from '@/lib/seed';
 import { Combobox } from '@/components/ui/combobox';
-import { format } from 'date-fns';
-import { Badge } from '../ui/badge';
-
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -29,7 +26,6 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
   const { toast } = useToast();
 
   const usersQuery = useMemoFirebase(() => {
-    // Only fetch users if the current user is an admin.
     if (firestore && adminUser && adminUser.email === 'admin@king.store') {
         return query(collection(firestore, 'users'), where('role', '==', 'user'));
     }
@@ -40,11 +36,6 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
   const offersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'gameOffers') : null, [firestore]);
   const { data: offers, isLoading: offersLoading, error: offersError } = useCollection<Offer>(offersQuery);
   
-  const pendingOrdersQuery = useMemoFirebase(() => 
-    firestore ? query(collectionGroup(firestore, 'userGameOffers'), where('status', '==', 'pending'), orderBy('createdAt', 'desc')) : null,
-  [firestore]);
-  const { data: pendingOrders, isLoading: ordersLoading } = useCollection<UserGameOffer>(pendingOrdersQuery);
-
   const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
   const [tempPrice, setTempPrice] = useState('');
 
@@ -186,64 +177,13 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
     toast({ title: 'نجاح', description: 'تم تحديث سعر العرض.' });
   };
   
-  const handleCompleteOrder = async (order: UserGameOffer) => {
-      if (!firestore) return;
-      const orderRef = doc(firestore, `users/${order.userId}/userGameOffers`, order.id);
-      try {
-        await updateDoc(orderRef, { status: 'completed' });
-        toast({ title: "تم تنفيذ الطلب!", description: `تم تحديث حالة طلب ${order.offerName}.` });
-      } catch (error) {
-        console.error("Error completing order:", error);
-        toast({ variant: "destructive", title: "خطأ", description: "فشل تحديث حالة الطلب." });
-      }
-  };
-
   const renderOrdersContent = () => {
     return (
-       <div className="rounded-lg border mt-4">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>اسم المستخدم</TableHead>
-              <TableHead>رقم المحفظة</TableHead>
-              <TableHead>العرض</TableHead>
-              <TableHead>التاريخ</TableHead>
-              <TableHead>تنفيذ</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {ordersLoading ? (
-               <TableRow><TableCell colSpan={5} className="text-center"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
-            ) : pendingOrders && pendingOrders.length > 0 ? (
-              pendingOrders.map((order) => (
-                <TableRow key={order.id}>
-                  <TableCell className="font-medium">{order.username}</TableCell>
-                  <TableCell>
-                      <div className="flex items-center gap-2">
-                          <span className="font-mono text-sm">{order.walletId}</span>
-                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleCopyWalletId(order.walletId)}>
-                            <Copy className="h-4 w-4"/>
-                          </Button>
-                      </div>
-                  </TableCell>
-                  <TableCell>{order.offerName}</TableCell>
-                  <TableCell>
-                    {order.createdAt ? format(new Date(order.createdAt.seconds * 1000), 'dd/MM/yyyy hh:mm a') : 'N/A'}
-                  </TableCell>
-                   <TableCell>
-                      <Button variant="ghost" size="icon" onClick={() => handleCompleteOrder(order)} aria-label="تنفيذ الطلب">
-                        <CheckCircle className="h-5 w-5 text-green-500 hover:text-green-600" />
-                      </Button>
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center">لا توجد طلبات قيد التنفيذ حاليًا.</TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+       <div className="rounded-lg border mt-4 p-4 text-center">
+        <h3 className="text-lg font-semibold">ميزة إدارة الطلبات قيد التطوير</h3>
+        <p className="text-muted-foreground mt-2">
+          يتم حاليًا العمل على تحسين هذه الميزة. في الوقت الحالي، يمكنك تتبع الطلبات الجديدة مباشرة من خلال واجهة Firebase Console.
+        </p>
       </div>
     )
   }
@@ -433,3 +373,5 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
 };
 
 export default AdminDashboard;
+
+    
