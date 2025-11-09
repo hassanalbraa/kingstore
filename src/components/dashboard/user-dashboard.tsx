@@ -10,6 +10,7 @@ import OfferCard from './offer-card';
 import { Settings, LogOut, Loader2, Copy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useMemo } from 'react';
+import { initialOffers as gameOffers } from '@/lib/seed'; // Import static data
 
 interface UserDashboardProps {
   user: User;
@@ -18,19 +19,20 @@ interface UserDashboardProps {
 }
 
 const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) => {
-  const firestore = useFirestore();
   const { toast } = useToast();
   
-  const offersQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, 'gameOffers'), orderBy('gameName'), orderBy('price'));
-  }, [firestore]);
+  // We will use static data for now to bypass the persistent Firestore security rule issue.
+  const offersLoading = false;
   
-  const { data: gameOffers, isLoading: offersLoading } = useCollection<Offer>(offersQuery);
-
   const groupedOffers = useMemo(() => {
     if (!gameOffers) return {};
-    return gameOffers.reduce((acc, offer) => {
+    // Add a dummy id to the static offers to satisfy the Offer type
+    const offersWithId: Offer[] = gameOffers.map((offer, index) => ({
+        ...offer,
+        id: `static-offer-${index}`
+    }));
+
+    return offersWithId.reduce((acc, offer) => {
       const gameName = offer.gameName;
       if (!acc[gameName]) {
         acc[gameName] = [];
