@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { User as FirebaseAuthUser } from 'firebase/auth';
 import { doc, setDoc, getDocs, query, where, collection } from 'firebase/firestore';
 import type { User } from '@/lib/types';
-import { useAuth, useUser, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
+import { useAuth, useUser, useFirestore, useMemoFirebase, useDoc, setDocumentNonBlocking } from '@/firebase';
 
 import { Card } from '@/components/ui/card';
 import AppHeader from '@/components/layout/header';
@@ -95,11 +95,13 @@ export default function Home() {
       };
       
       const userDoc = doc(firestore, "users", authUser.uid);
-      await setDoc(userDoc, newUser);
+      // Use non-blocking write to allow for contextual error handling
+      setDocumentNonBlocking(userDoc, newUser, { merge: false });
 
       if (userRole === 'admin') {
         const adminRoleDoc = doc(firestore, "roles_admin", authUser.uid);
-        await setDoc(adminRoleDoc, { isAdmin: true });
+        // Use non-blocking write
+        setDocumentNonBlocking(adminRoleDoc, { isAdmin: true }, { merge: false });
       }
       
       toast({ title: 'نجاح', description: 'تم إنشاء حسابك بنجاح! يمكنك الآن تسجيل الدخول.' });
@@ -108,24 +110,22 @@ export default function Home() {
     } catch (error: any) {
       console.error("Registration Error:", error);
       
+      // This catch block will now primarily handle Auth errors (e.g., email-already-in-use)
+      // Firestore permission errors will be handled by the global error listener.
       let description = "حدث خطأ أثناء إنشاء الحساب.";
       if (error.code === 'auth/email-already-in-use') {
         description = "هذا البريد الإلكتروني مستخدم بالفعل.";
-      } else if (error.code === 'permission-denied') {
-        description = "حدث خطأ أثناء إنشاء بيانات المستخدم. الرجاء المحاولة مرة أخرى.";
       }
       
       toast({ variant: "destructive", title: "خطأ في إنشاء الحساب", description });
 
-      // Rollback: If user was created in Auth but failed in Firestore, delete the auth user
+      // Rollback Auth user if it was created
       if (authUser) {
         try {
           await authUser.delete();
           console.log("Rolled back Auth user creation.");
         } catch (deleteError) {
           console.error("Failed to rollback Auth user creation:", deleteError);
-          // This is a critical state, might need manual cleanup.
-          // For the user, we can just inform them to contact support.
           toast({ variant: "destructive", title: "خطأ فادح", description: "فشل إنشاء الحساب. الرجاء التواصل مع الدعم الفني." });
         }
       }
@@ -206,5 +206,3 @@ export default function Home() {
     </div>
   );
 }
-
-    
