@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import type { User, Offer } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
 import { collection, doc, getDocs, query, where, runTransaction, updateDoc } from 'firebase/firestore';
@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { LogOut, Edit, Save, XCircle, Loader2, PlusCircle, Copy, Database, Gift } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { seedGameOffers } from '@/lib/seed';
+import { Combobox } from '@/components/ui/combobox';
 
 
 interface AdminDashboardProps {
@@ -43,6 +44,12 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
   const [newPrice, setNewPrice] = useState('');
   const [newUnit, setNewUnit] = useState('');
   const [isAddingOffer, setIsAddingOffer] = useState(false);
+
+  const gameNames = useMemo(() => {
+    if (!offers) return [];
+    const uniqueNames = [...new Set(offers.map(offer => offer.gameName))];
+    return uniqueNames.map(name => ({ value: name, label: name }));
+  }, [offers]);
 
 
   const handleSeedData = async () => {
@@ -251,8 +258,13 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
                 <h3 className="text-lg font-semibold">إضافة عرض جديد</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                        <Label htmlFor="new-game-name">اسم اللعبة</Label>
-                        <Input id="new-game-name" value={newGameName} onChange={(e) => setNewGameName(e.target.value)} placeholder="مثال: PUBG" />
+                        <Label>اسم اللعبة</Label>
+                        <Combobox
+                          items={gameNames}
+                          value={newGameName}
+                          onChange={setNewGameName}
+                          placeholder="اختر أو اكتب اسم اللعبة..."
+                        />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="new-offer-name">اسم العرض</Label>
