@@ -105,6 +105,14 @@
         "createdAt": {
             "type": "string",
             "format": "date-time"
+        },
+        "gameId": {
+            "type": "string",
+            "description": "The player's in-game ID, required for certain games."
+        },
+        "gameUsername": {
+            "type": "string",
+            "description": "The player's in-game username, for verification."
         }
       },
       "required": [
@@ -162,14 +170,13 @@
         }
       },
       {
-        "path": "userGameOffers",
-        "collectionGroup": true,
+        "path": "userGameOffers/{userGameOfferId}",
         "definition": {
           "entityName": "UserGameOffer",
           "schema": {
             "$ref": "#/backend/entities/UserGameOffer"
           },
-          "description": "A collection group of all user game offers across all users."
+          "description": "A collection storing all user game offers."
         }
       },
       {
@@ -189,6 +196,6 @@
         }
       }
     ],
-    "reasoning": "The Firestore data structure is designed to support the KING STORE application's features, focusing on user authentication, game offer management, and admin functionalities. The structure prioritizes authorization independence, clarity, and scalability. It avoids hierarchical authorization dependencies by denormalizing necessary authorization data. Structural segregation ensures that collections have a homogeneous security posture, simplifying security rules.  \n\nThe `users` collection stores user profiles.  Admin privileges are managed via a separate `roles_admin` collection, ensuring that checking for admin status relies on document existence, and not on mutable data within the user document itself.  This provides a more robust and reliable authorization mechanism. The `gameOffers` collection stores information about available game offers.  The `users/{userId}/userGameOffers` collection stores relationships between users and the game offers they have purchased. This structure enable path-based ownership, making security rules simple and efficient.\n\nThis structure achieves authorization independence by avoiding `get()` calls in security rules. For example, checking if a user is an admin is done by checking for the existence of a document in the `roles_admin/{userId}` collection, rather than reading a field from the user's document.  This ensures atomic operations and simplifies debugging.\n\nThe structure supports the required QAPs by using structural segregation and path-based ownership.  For instance, listing game offers is done directly from the `gameOffers` collection, which has a uniform security posture. Access to `userGameOffers` is controlled by the `userId` in the path, ensuring that only the user can access their own game offers."
+    "reasoning": "The Firestore data structure is designed to support the KING STORE application's features, focusing on user authentication, game offer management, and admin functionalities. The structure prioritizes authorization independence, clarity, and scalability. It avoids hierarchical authorization dependencies by denormalizing necessary authorization data. Structural segregation ensures that collections have a homogeneous security posture, simplifying security rules.  \n\nThe `users` collection stores user profiles.  Admin privileges are managed via a separate `roles_admin` collection, ensuring that checking for admin status relies on document existence, and not on mutable data within the user document itself.  This provides a more robust and reliable authorization mechanism. The `gameOffers` collection stores information about available game offers.  The `userGameOffers` collection is a root-level collection to store all purchase orders. This makes it easier for admins to query all orders across all users using a collection group query, while users will query their own orders via a `where('userId', '==', auth.uid)` clause.\n\nThis structure achieves authorization independence by avoiding `get()` calls in security rules. For example, checking if a user is an admin is done by checking for the existence of a document in the `roles_admin/{userId}` collection, rather than reading a field from the user's document.  This ensures atomic operations and simplifies debugging."
   }
 }

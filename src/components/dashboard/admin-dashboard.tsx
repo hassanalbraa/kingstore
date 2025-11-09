@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useMemo } from 'react';
@@ -11,10 +12,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { LogOut, Edit, Save, XCircle, Loader2, PlusCircle, Copy, Database, Gift, Search, ArrowRight, CheckCircle, RefreshCw } from 'lucide-react';
+import { LogOut, Edit, Save, XCircle, Loader2, PlusCircle, Copy, Database, Gift, Search, ArrowRight, CheckCircle, RefreshCw, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { seedGameOffers } from '@/lib/seed';
 import { Combobox } from '@/components/ui/combobox';
+import { Badge } from '@/components/ui/badge';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -42,9 +44,18 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
 
   const offersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'gameOffers') : null, [firestore]);
   const { data: offers, isLoading: offersLoading, error: offersError } = useCollection<Offer>(offersQuery);
+
+  const pendingOrdersQuery = useMemoFirebase(() => 
+    firestore && adminUser?.role === 'admin' 
+    ? query(collection(firestore, 'userGameOffers'), where('status', '==', 'pending')) 
+    : null
+  , [firestore, adminUser]);
+  const { data: pendingOrders, isLoading: ordersLoading } = useCollection<UserGameOffer>(pendingOrdersQuery);
   
   const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
   const [tempPrice, setTempPrice] = useState('');
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+
 
   // --- Funding State ---
   const [fundingStep, setFundingStep] = useState<FundingStep>('search');
@@ -216,16 +227,97 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
     toast({ title: 'نجاح', description: 'تم تحديث سعر العرض.' });
   };
   
-  const renderOrdersContent = () => {
+ const handleCompleteOrder = async (order: UserGameOffer) => {
+    if (!firestore) return;
+    setUpdatingOrderId(order.id);
+    try {
+        const orderRef = doc(firestore, `userGameOffers/${order.id}`);
+        await updateDoc(orderRef, { status: 'completed' });
+        toast({ title: "تم!", description: "تم تحديث حالة الطلب إلى مكتمل." });
+    } catch (error) {
+        console.error("Error completing order: ", error);
+        toast({ variant: "destructive", title: "خطأ", description: "فشل تحديث حالة الطلب." });
+    } finally {
+        setUpdatingOrderId(null);
+    }
+};
+
+const getStatusBadge = (status: 'pending' | 'completed' | 'failed') => {
+    switch (status) {
+        case 'pending':
+            return <Badge variant="secondary">قيد التنفيذ</Badge>;
+        case 'completed':
+            return <Badge>مكتمل</Badge>;
+        case 'failed':
+            return <Badge variant="destructive">فشل</Badge>;
+        default:
+            return <Badge variant="outline">غير معروف</Badge>;
+    }
+};
+
+const renderOrdersContent = () => {
+    if (ordersLoading) {
+        return (
+         <div className="flex justify-center items-center p-10">
+           <Loader2 className="h-12 w-12 animate-spin text-primary" />
+           <p className="mr-4">جاري تحميل الطلبات الجديدة...</p>
+         </div>
+       );
+    }
+
+    if (!pendingOrders || pendingOrders.length === 0) {
+        return (
+            <div className="rounded-lg border mt-4 p-4 text-center">
+             <h3 className="text-lg font-semibold">لا توجد طلبات جديدة</h3>
+             <p className="text-muted-foreground mt-2">
+               لا يوجد أي طلبات قيد التنفيذ في الوقت الحالي.
+             </p>
+           </div>
+         )
+    }
+
     return (
-       <div className="rounded-lg border mt-4 p-4 text-center">
-        <h3 className="text-lg font-semibold">ميزة إدارة الطلبات قيد التطوير</h3>
-        <p className="text-muted-foreground mt-2">
-          يتم حاليًا العمل على تحسين هذه الميزة. في الوقت الحالي، يمكنك تتبع الطلبات الجديدة مباشرة من خلال واجهة Firebase Console.
-        </p>
+       <div className="rounded-lg border mt-4">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>اسم المستخدم</TableHead>
+              <TableHead>العرض</TableHead>
+              <TableHead>معلومات إضافية</TableHead>
+              <TableHead className="text-center">الحالة</TableHead>
+              <TableHead className="text-center">إجراء</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+              {pendingOrders.map((order) => (
+                <TableRow key={order.id}>
+                  <TableCell className="font-medium">{order.username}</TableCell>
+                  <TableCell>{order.offerName} ({order.gameName})</TableCell>
+                  <TableCell>
+                    {order.gameId && <p className="text-xs">ID: <span className="font-mono">{order.gameId}</span></p>}
+                    {order.gameUsername && <p className="text-xs">الاسم: {order.gameUsername}</p>}
+                  </TableCell>
+                  <TableCell className="text-center">{getStatusBadge(order.status)}</TableCell>
+                  <TableCell className="text-center">
+                    <Button 
+                        size="icon" 
+                        variant="outline"
+                        onClick={() => handleCompleteOrder(order)}
+                        disabled={updatingOrderId === order.id}
+                        aria-label="إكمال الطلب"
+                        className="h-8 w-8"
+                    >
+                        {updatingOrderId === order.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Check className="h-4 w-4" />}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+          </TableBody>
+        </Table>
       </div>
     )
-  }
+};
+
 
   const renderFundWalletContent = () => {
     switch (fundingStep) {

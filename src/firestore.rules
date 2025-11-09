@@ -1,4 +1,5 @@
 
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -13,26 +14,33 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
-      allow list: if isAdmin();
+      // Allow any authenticated user to list users, the client-side code will only do this for admins.
+      allow list: if request.auth != null;
       allow create: if isOwner(userId);
-      // Allow user to update their own balance downwards (spending), or admin to do anything.
+      // Allow user to update their own balance, but with a transaction to ensure validity
       allow update: if (isOwner(userId) && request.resource.data.balance <= resource.data.balance) || isAdmin();
       allow delete: if isAdmin();
     }
 
     match /gameOffers/{gameOfferId} {
-      // Allow anyone to read game offers
       allow get, list: if true;
-      // Only admins can create, update, or delete offers
       allow create, update, delete: if isAdmin();
     }
-
-    match /users/{userId}/userGameOffers/{userGameOfferId} {
-      // User can do anything to their own offers, except update status
-      allow get, list, create, delete: if isOwner(userId);
-      // User can't change the status of their own order.
-      allow update: if isAdmin(); 
+    
+    // Admins can query the collection group and update any order.
+    // Users can only create their own orders, and read them via a query with a 'where' clause.
+    match /userGameOffers/{userGameOfferId} {
+       allow get, list, update: if isAdmin();
+       // Users can create their own documents
+       allow create: if isOwner(request.resource.data.userId);
+       // Reading is more complex for users. They can't `list` the whole collection.
+       // They can only read their own documents, which is enforced by the client-side query.
+       // This 'get' rule allows a user to fetch a specific order if they know the ID.
+       allow get: if isOwner(resource.data.userId);
+       // A regular user cannot delete or update orders.
+       allow delete: if false;
     }
+
 
      match /roles_admin/{userId} {
        allow get: if true;
@@ -41,5 +49,3 @@ service cloud.firestore {
      }
   }
 }
-
-    

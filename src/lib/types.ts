@@ -29,4 +29,6 @@ export interface UserGameOffer {
   price: number;
   status: 'pending' | 'completed' | 'failed';
   createdAt: Date;
+  gameId?: string; // Optional: For game-specific user ID
+  gameUsername?: string; // Optional: For game-specific username
 }

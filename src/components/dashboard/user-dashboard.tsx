@@ -8,6 +8,8 @@ import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } 
 import { collection, runTransaction, doc, query, orderBy } from 'firebase/firestore';
 import { CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import OfferCard from './offer-card';
 import GameCard from './game-card';
@@ -23,6 +25,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -34,11 +44,18 @@ interface UserDashboardProps {
   onGoToSettings: () => void;
 }
 
+// Games that require extra user input (ID, username)
+const GAMES_REQUIRING_ID = ['PUBG', 'Free Fire', 'عروض التيك توك'];
+
 const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) => {
   const { toast } = useToast();
   const [selectedGame, setSelectedGame] = useState<string | null>(null);
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
   const [isPurchaseLoading, setIsPurchaseLoading] = useState(false);
+  const [showGameIdDialog, setShowGameIdDialog] = useState(false);
+  const [gameId, setGameId] = useState('');
+  const [gameUsername, setGameUsername] = useState('');
+  
   const firestore = useFirestore();
   
   const offersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'gameOffers') : null, [firestore]);
@@ -68,6 +85,16 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
     navigator.clipboard.writeText(walletId);
     toast({title: "تم النسخ!", description: "تم نسخ رقم محفظتك."})
   }
+
+  const handleSelectOffer = (offer: Offer) => {
+    setSelectedOffer(offer);
+    if (GAMES_REQUIRING_ID.includes(offer.gameName)) {
+      setShowGameIdDialog(true);
+    } else {
+      // For other games, show the simple confirmation dialog
+      // This part remains unchanged, just setSelectedOffer will trigger the existing AlertDialog
+    }
+  };
   
   const handlePurchase = async () => {
     if (!firestore || !user || !selectedOffer) return;
@@ -81,12 +108,23 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
         setSelectedOffer(null);
         return;
     }
+    
+    // For games requiring ID, check if fields are filled
+    if (GAMES_REQUIRING_ID.includes(selectedOffer.gameName) && (!gameId || !gameUsername)) {
+       toast({
+            variant: "destructive",
+            title: "بيانات ناقصة",
+            description: "الرجاء إدخال ID اللاعب واسم الحساب.",
+        });
+        return;
+    }
 
     setIsPurchaseLoading(true);
 
     try {
         const userRef = doc(firestore, 'users', user.id);
-        const userGameOfferRef = doc(collection(firestore, `users/${user.id}/userGameOffers`));
+        // All user game offers are now in a root collection
+        const userGameOfferRef = doc(collection(firestore, `userGameOffers`));
 
         await runTransaction(firestore, async (transaction) => {
             const userDoc = await transaction.get(userRef);
@@ -112,6 +150,11 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
               price: selectedOffer.price,
               status: "pending",
               createdAt: new Date(),
+              // Add gameId and gameUsername if they exist
+              ...(GAMES_REQUIRING_ID.includes(selectedOffer.gameName) && {
+                gameId: gameId,
+                gameUsername: gameUsername
+              })
             }
             transaction.set(userGameOfferRef, newPurchase);
         });
@@ -131,6 +174,9 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
     } finally {
         setIsPurchaseLoading(false);
         setSelectedOffer(null);
+        setShowGameIdDialog(false);
+        setGameId('');
+        setGameUsername('');
     }
   };
 
@@ -157,7 +203,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {groupedOffers[selectedGame].map((offer) => (
-              <OfferCard key={offer.id} offer={offer} onClick={() => setSelectedOffer(offer)} />
+              <OfferCard key={offer.id} offer={offer} onClick={() => handleSelectOffer(offer)} />
             ))}
           </div>
         </div>
@@ -282,7 +328,8 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
           </Tabs>
       </CardContent>
 
-      <AlertDialog open={!!selectedOffer} onOpenChange={(open) => !open && setSelectedOffer(null)}>
+       {/* Confirmation Dialog for games NOT requiring ID */}
+      <AlertDialog open={!!selectedOffer && !GAMES_REQUIRING_ID.includes(selectedOffer.gameName)} onOpenChange={(open) => !open && setSelectedOffer(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>تأكيد عملية الشراء</AlertDialogTitle>
@@ -299,10 +346,48 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Custom Dialog for games REQUIRING ID */}
+      <Dialog open={showGameIdDialog} onOpenChange={(open) => {
+          if (!open) {
+              setShowGameIdDialog(false);
+              setSelectedOffer(null);
+              setGameId('');
+              setGameUsername('');
+          }
+      }}>
+        <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+                <DialogTitle>تأكيد الشراء لـ {selectedOffer?.gameName}</DialogTitle>
+                <DialogDescription>
+                    الرجاء إدخال بيانات حسابك في اللعبة لإتمام عملية الشحن.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="game-id" className="text-right">ID اللاعب</Label>
+                    <Input id="game-id" value={gameId} onChange={(e) => setGameId(e.target.value)} className="col-span-3" placeholder="أدخل ID حسابك في اللعبة" />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="game-username" className="text-right">الاسم التقريبي</Label>
+                    <Input id="game-username" value={gameUsername} onChange={(e) => setGameUsername(e.target.value)} className="col-span-3" placeholder="أدخل اسم تقريبي لحسابك" />
+                </div>
+                <Separator />
+                <div className="text-center">
+                    <p>ستقوم بشراء: <span className="font-semibold">{selectedOffer?.offerName}</span></p>
+                    <p>مقابل: <span className="font-bold text-primary">{selectedOffer?.price.toFixed(2)} ج.س</span></p>
+                </div>
+            </div>
+            <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowGameIdDialog(false)}>إلغاء</Button>
+                <Button type="submit" onClick={handlePurchase} disabled={isPurchaseLoading}>
+                    {isPurchaseLoading ? <Loader2 className="animate-spin" /> : "تأكيد الشراء"}
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
 
 export default UserDashboard;
-
-    
