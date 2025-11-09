@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { User as FirebaseAuthUser } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import type { User } from '@/lib/types';
-import { useAuth, useUser, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
-import { initiateEmailSignIn, initiateEmailSignUp } from '@/firebase/non-blocking-login';
+import { useAuth, useUser, useFirestore, useMemoFirebase, useDoc, updateDocumentNonBlocking } from '@/firebase';
+import { initiateEmailSignIn } from '@/firebase/non-blocking-login';
 
 import { Card } from '@/components/ui/card';
 import AppHeader from '@/components/layout/header';
@@ -16,6 +16,7 @@ import AdminDashboard from '@/components/dashboard/admin-dashboard';
 import SettingsPage from '@/components/dashboard/settings-page';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+import { createUserWithEmailAndPassword, updatePassword } from 'firebase/auth';
 
 type View = 'login' | 'register' | 'user_dashboard' | 'admin_dashboard' | 'settings';
 
@@ -42,7 +43,7 @@ export default function Home() {
   const handleRegister = async (username: string, email: string, password: string): Promise<boolean> => {
     try {
       // First, create user in Firebase Auth
-      const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const authUser = userCredential.user;
 
       // Then, create user profile in Firestore
@@ -54,23 +55,43 @@ export default function Home() {
         role: 'user', // Default role
       };
 
-      await setDoc(doc(firestore, "users", authUser.uid), newUser);
+      // Use non-blocking write
+      const userDoc = doc(firestore, "users", authUser.uid);
+      setDoc(userDoc, newUser).catch(error => {
+        console.error("Error writing user document: ", error);
+        // Here you could emit a global error
+      });
       
       toast({ title: 'نجاح', description: 'تم إنشاء حسابك بنجاح! يمكنك الآن تسجيل الدخول.' });
       setView('login');
       return true;
     } catch (error: any) {
       if (error.code === 'auth/email-already-in-use') {
-        toast({ variant: "destructive", title: "خطأ", description: "البريد الإلكتروني موجود بالفعل." });
+        toast({ variant: "destructive", title: "خطأ", description: "هذا البريد الإلكتروني مستخدم بالفعل." });
       } else {
-        toast({ variant: "destructive", title: "خطأ", description: "حدث خطأ أثناء إنشاء الحساب." });
+        toast({ variant: "destructive", title: "خطأ في التسجيل", description: "حدث خطأ غير متوقع أثناء إنشاء حسابك. يرجى المحاولة مرة أخرى." });
       }
       return false;
     }
   };
 
+  const handleChangePassword = async (newPassword: string) => {
+    if (!auth.currentUser) {
+        toast({ variant: "destructive", title: "خطأ", description: "يجب عليك تسجيل الدخول أولاً." });
+        return;
+    }
+    try {
+        await updatePassword(auth.currentUser, newPassword);
+        toast({ title: 'نجاح', description: 'تم تغيير كلمة المرور بنجاح!' });
+        handleBackToDashboard();
+    } catch (error) {
+        toast({ variant: "destructive", title: "خطأ", description: "فشل تغيير كلمة المرور. قد تحتاج إلى تسجيل الدخول مرة أخرى." });
+    }
+  };
+
   const handleLogout = () => {
     auth.signOut();
+    setView('login');
   };
 
   const handleGoToSettings = () => {
@@ -82,7 +103,11 @@ export default function Home() {
   }
 
   const handleBackToDashboard = () => {
-    // The view will be determined by the user's role from the document
+    if (currentUser?.role === 'admin') {
+      setView('admin_dashboard');
+    } else {
+      setView('user_dashboard');
+    }
   };
 
   const renderView = () => {
@@ -92,11 +117,12 @@ export default function Home() {
     
     if (firebaseUser && currentUser) {
        if (view === 'settings') {
-         return <SettingsPage onBack={handleBackToDashboard} />;
+         return <SettingsPage onBack={handleBackToDashboard} onChangePassword={handleChangePassword}/>;
        }
-       return currentUser.role === 'admin' 
-        ? <AdminDashboard onLogout={handleLogout} /> 
-        : <UserDashboard user={currentUser} onLogout={handleLogout} onGoToSettings={handleGoToSettings} />;
+       if (currentUser.role === 'admin') {
+         return <AdminDashboard onLogout={handleLogout} />
+       }
+       return <UserDashboard user={currentUser} onLogout={handleLogout} onGoToSettings={handleGoToSettings} />;
     }
 
     // If no user, show login or register

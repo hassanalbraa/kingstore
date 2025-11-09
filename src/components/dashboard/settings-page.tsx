@@ -6,31 +6,33 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowRight, KeyRound } from 'lucide-react';
+import { ArrowRight, KeyRound, Loader2 } from 'lucide-react';
 
 interface SettingsPageProps {
   onBack: () => void;
+  onChangePassword: (newPassword: string) => Promise<void>;
 }
 
-const SettingsPage = ({ onBack }: SettingsPageProps) => {
+const SettingsPage = ({ onBack, onChangePassword }: SettingsPageProps) => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  const handleChangePassword = () => {
-    if (newPassword.length < 3) {
-      toast({ variant: 'destructive', title: 'خطأ', description: 'يجب أن تكون كلمة المرور 3 أحرف على الأقل.' });
+  const handleChangePassword = async () => {
+    if (newPassword.length < 6) {
+      toast({ variant: 'destructive', title: 'خطأ', description: 'يجب أن تكون كلمة المرور 6 أحرف على الأقل.' });
       return;
     }
     if (newPassword !== confirmPassword) {
       toast({ variant: 'destructive', title: 'خطأ', description: 'كلمتا المرور غير متطابقتين.' });
       return;
     }
-    // In a real app, you would call an API here.
-    toast({ title: 'نجاح', description: 'تم تغيير كلمة المرور بنجاح!' });
+    setIsLoading(true);
+    await onChangePassword(newPassword);
+    setIsLoading(false);
     setNewPassword('');
     setConfirmPassword('');
-    onBack();
   };
 
   return (
@@ -66,8 +68,8 @@ const SettingsPage = ({ onBack }: SettingsPageProps) => {
         </div>
       </CardContent>
       <CardFooter className="flex-col sm:flex-row gap-2">
-        <Button onClick={handleChangePassword} className="w-full">
-          <KeyRound className="ms-2 h-4 w-4" />
+        <Button onClick={handleChangePassword} className="w-full" disabled={isLoading}>
+          {isLoading ? <Loader2 className="animate-spin" /> : <KeyRound className="ms-2 h-4 w-4" />}
           تغيير كلمة المرور
         </Button>
       </CardFooter>
