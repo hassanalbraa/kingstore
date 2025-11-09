@@ -33,8 +33,8 @@ service cloud.firestore {
     match /users/{userId} {
       // Allow the user to read their own profile.
       allow get: if isOwner(userId);
-      // Only the owner can create their profile, and the userId must match the auth.uid
-      allow create: if isOwner(userId) && request.resource.data.id == request.auth.uid;
+      // Allow user to create their own profile if the auth'd user's id matches the id in the document
+      allow create: if isSignedIn() && request.resource.data.id == request.auth.uid;
       // Only the owner can update their profile.
       allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
       // Only the owner can delete their profile.
