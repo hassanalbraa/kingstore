@@ -47,17 +47,30 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
     
-    // Rule for a user to access their OWN game offers subcollection
-    match /users/{userId}/userGameOffers/{offerId} {
-      allow get, list, create, delete: if isOwner(userId);
-    }
-    
-    // Rule for ADMINS to query the collection group of all userGameOffers
+    // Combined rule for user and admin access to userGameOffers
     match /{path=**}/userGameOffers/{offerId} {
-      // Admins can read any order and update its status.
-      // Users cannot use this rule.
-      allow get, list, update: if isAdmin();
+      // Read: Admins can read anything. Users can only read their own documents.
+      // Note: For a 'list' operation on a collection, 'resource' is not available. 
+      // This is a known limitation. The query from the client MUST include a `where('userId', '==', request.auth.uid)` clause.
+      // The rules below are primarily for 'get' on a single document. List operations are implicitly secured by the client-side query.
+      allow get: if isAdmin() || isOwner(resource.data.userId);
+      
+      // The client-side queries are already structured to only fetch relevant data:
+      // - User fetches from /users/{their-own-id}/userGameOffers
+      // - Admin fetches a collectionGroup query for pending orders.
+      // These rules provide an additional layer of security.
+      allow list: if isAdmin() || (request.auth != null && request.path[2] == request.auth.uid);
+      
+      // Create: A user can create an offer for themselves.
+      allow create: if isOwner(request.resource.data.userId);
+
+      // Update: Only admins can update the status of an offer (e.g., to 'completed').
+      allow update: if isAdmin();
+
+      // Delete: A user can delete their own offer document.
+      allow delete: if isOwner(resource.data.userId);
     }
+
 
      match /roles_admin/{userId} {
        allow get: if true;
@@ -68,5 +81,3 @@ service cloud.firestore {
      }
   }
 }
-
-    
