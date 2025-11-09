@@ -41,35 +41,37 @@ export default function Home() {
   };
   
   const handleRegister = async (username: string, email: string, password: string): Promise<boolean> => {
+    let authUser: FirebaseAuthUser | null = null;
     try {
-      // First, create user in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const authUser = userCredential.user;
+      authUser = userCredential.user;
 
-      // Then, create user profile in Firestore
       const newUser: User = {
         id: authUser.uid,
         username,
         email,
         balance: 0,
-        role: 'user', // Default role
+        role: 'user',
       };
-
-      // Use non-blocking write
+      
       const userDoc = doc(firestore, "users", authUser.uid);
-      setDoc(userDoc, newUser).catch(error => {
-        console.error("Error writing user document: ", error);
-        // Here you could emit a global error
-      });
+      await setDoc(userDoc, newUser);
       
       toast({ title: 'نجاح', description: 'تم إنشاء حسابك بنجاح! يمكنك الآن تسجيل الدخول.' });
       setView('login');
       return true;
     } catch (error: any) {
+      console.error(error);
       if (error.code === 'auth/email-already-in-use') {
         toast({ variant: "destructive", title: "خطأ", description: "هذا البريد الإلكتروني مستخدم بالفعل." });
+      } else if (error.code === 'permission-denied') {
+        toast({ variant: "destructive", title: "خطأ في الأذونات", description: "ليس لديك الصلاحية لإنشاء هذا المستخدم." });
       } else {
-        toast({ variant: "destructive", title: "خطأ في التسجيل", description: "حدث خطأ غير متوقع أثناء إنشاء حسابك. يرجى المحاولة مرة أخرى." });
+        toast({ variant: "destructive", title: "خطأ", description: "حدث خطأ أثناء إنشاء الحساب." });
+      }
+      // If user was created in Auth but failed in Firestore, we should probably delete the auth user
+      if (authUser) {
+        await authUser.delete();
       }
       return false;
     }
