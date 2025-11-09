@@ -69,12 +69,15 @@ service cloud.firestore {
      * @principle Manages admin roles based on document existence.
      */
     match /roles_admin/{userId} {
-      // Only admins can create, get, or delete admin roles.
-      allow get: if isAdmin();
-      allow create: if isAdmin();
-      allow update: if false; // No updates allowed, only create and delete for role assignment.
-      allow delete: if isAdmin();
+      // Allow admins to get or delete roles.
+      allow get, delete: if isAdmin();
+      
+      // Allow the initial admin user to be created by that user.
+      // Allow subsequent admin roles to be created only by existing admins.
+      allow create: if (isOwner(userId) && request.auth.token.email == 'admin@king.store') || isAdmin();
 
+      allow update: if false; // No updates allowed, only create and delete for role assignment.
+      
       allow list: if false; // Prevent listing of admin roles.
     }
 
