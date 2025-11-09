@@ -2,7 +2,6 @@ import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { FirebaseClientProvider } from '@/firebase';
-import TawkTo from '@/components/TawkTo';
 
 export const metadata: Metadata = {
   title: 'KING STORE',
@@ -20,6 +19,21 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              var Tawk_API=Tawk_API||{}, Tawk_LoadStart=new Date();
+              (function(){
+              var s1=document.createElement("script"),s0=document.getElementsByTagName("script")[0];
+              s1.async=true;
+              s1.src='https://embed.tawk.to/6910f12072b4a6195cfae83e/default';
+              s1.charset='UTF-8';
+              s1.setAttribute('crossorigin','*');
+              s0.parentNode.insertBefore(s1,s0);
+              })();
+            `,
+          }}
+        />
       </head>
       <body className="font-body antialiased">
         <FirebaseClientProvider>
@@ -27,7 +41,6 @@ export default function RootLayout({
             {children}
           </div>
         </FirebaseClientProvider>
-        <TawkTo propertyId="6910f12072b4a6195cfae83e" widgetId="default" />
         <Toaster />
       </body>
     </html>
