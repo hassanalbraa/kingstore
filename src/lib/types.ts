@@ -28,7 +28,7 @@ export interface UserGameOffer {
   offerName: string;
   price: number;
   status: 'pending' | 'completed' | 'failed';
-  createdAt: Date;
+  createdAt: Date | { seconds: number; nanoseconds: number; };
   gameId?: string; // Optional: For game-specific user ID
   gameUsername?: string; // Optional: For game-specific username
 }

@@ -4,8 +4,8 @@
 
 import { useState, useMemo } from 'react';
 import type { User, Offer, UserGameOffer } from '@/lib/types';
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
-import { collection, runTransaction, doc, query, orderBy } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, runTransaction, doc, query, orderBy, where } from 'firebase/firestore';
 import { CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -62,7 +62,13 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
   const { data: gameOffers, isLoading: offersLoading } = useCollection<Offer>(offersQuery);
 
   const myOrdersQuery = useMemoFirebase(() => 
-    firestore && user ? query(collection(firestore, `users/${user.id}/userGameOffers`), orderBy('createdAt', 'desc')) : null
+    firestore && user 
+    ? query(
+        collection(firestore, 'userGameOffers'), 
+        where('userId', '==', user.id),
+        orderBy('createdAt', 'desc')
+      ) 
+    : null
   , [firestore, user]);
   const { data: myOrders, isLoading: ordersLoading } = useCollection<UserGameOffer>(myOrdersQuery);
 
@@ -140,7 +146,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
 
             transaction.update(userRef, { balance: newBalance });
 
-            const newPurchase: Omit<UserGameOffer, 'id'> = {
+            const newPurchase: Omit<UserGameOffer, 'id' | 'createdAt'> & { createdAt: Date } = {
               userId: user.id,
               username: user.username,
               walletId: user.walletId,
@@ -272,7 +278,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
                   <TableCell className="font-medium">{order.offerName}</TableCell>
                   <TableCell>{order.price.toFixed(2)} ج.س</TableCell>
                   <TableCell>
-                    {order.createdAt ? format(new Date(order.createdAt.seconds * 1000), 'dd/MM/yyyy hh:mm a') : 'N/A'}
+                    {order.createdAt ? format(new Date((order.createdAt as any).seconds * 1000), 'dd/MM/yyyy hh:mm a') : 'N/A'}
                   </TableCell>
                   <TableCell>{getStatusBadge(order.status)}</TableCell>
                 </TableRow>

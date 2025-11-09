@@ -13,10 +13,8 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
-      // Allow any authenticated user to list users, the client-side code will only do this for admins.
       allow list: if request.auth != null;
       allow create: if isOwner(userId);
-      // Allow user to update their own balance, but with a transaction to ensure validity
       allow update: if (isOwner(userId) && request.resource.data.balance <= resource.data.balance) || isAdmin();
       allow delete: if isAdmin();
     }
@@ -26,14 +24,12 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
     
-    // Admins can query the collection group and update any order.
-    // Users can only create their own orders, and read them via a query with a 'where' clause.
     match /userGameOffers/{userGameOfferId} {
        // Admins can read and update any order.
        allow get, list, update: if isAdmin();
        // Users can create their own documents, rule checks if the new doc belongs to the user.
        allow create: if isOwner(request.resource.data.userId);
-       // Users can read their own documents (e.g. for a detail page), enforced by checking the stored data.
+       // Users can read their own documents (e.g. for a detail page or via a query).
        allow get: if isOwner(resource.data.userId);
        // Users cannot update or delete orders. Admins can update, but cannot delete.
        allow delete: if false;
@@ -43,8 +39,6 @@ service cloud.firestore {
      match /roles_admin/{userId} {
        allow get: if true;
        allow list, delete: if isAdmin();
-       // Allow a user to create their own admin role document.
-       // This is safe because it's only triggered for the admin email in the client code.
        allow create: if isOwner(userId);
        allow update: if false;
      }
