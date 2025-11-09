@@ -28,9 +28,9 @@ export default function Home() {
   const { user: firebaseUser, isUserLoading } = useUser();
 
   const userDocRef = useMemoFirebase(() => {
-    if (!firestore || !firebaseUser) return null;
+    if (!firestore || !firebaseUser?.uid) return null;
     return doc(firestore, 'users', firebaseUser.uid);
-  }, [firestore, firebaseUser]);
+  }, [firestore, firebaseUser?.uid]);
 
   const { data: currentUser, isLoading: isUserDocLoading } = useDoc<User>(userDocRef);
 
@@ -46,23 +46,25 @@ export default function Home() {
 
     try {
       const walletId = Math.floor(1000000 + Math.random() * 9000000).toString();
+      // Admin role is assigned if the email matches exactly 'admin@king.store'
       const userRole = authUser.email?.toLowerCase() === 'admin@king.store' ? 'admin' : 'user';
 
       const newUser: Omit<User, 'id'> = {
         walletId,
-        username: authUser.displayName || authUser.email?.split('@')[0] || 'New User',
+        username: authUser.email?.split('@')[0] || 'New User',
         email: authUser.email || '',
         balance: 0,
         role: userRole,
       };
 
       await setDoc(userRef, newUser);
-
+      
+      // If the user is an admin, also create a document in the roles_admin collection
       if (userRole === 'admin') {
         const adminRoleDocRef = doc(firestore, "roles_admin", authUser.uid);
-        await setDoc(adminRoleDocRef, { email: authUser.email, createdAt: new Date() });
+        await setDoc(adminRoleDocRef, { email: authUser.email });
       }
-      
+
       toast({ title: "مرحباً بك!", description: "تم إعداد ملفك الشخصي بنجاح." });
 
     } catch (error: any) {
