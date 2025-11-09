@@ -63,13 +63,22 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
 
   const myOrdersQuery = useMemoFirebase(() => 
     firestore && user 
-    ? query(
-        collection(firestore, 'users', user.id, 'userGameOffers'), 
-        orderBy('createdAt', 'desc')
-      ) 
+    ? query(collection(firestore, 'users', user.id, 'userGameOffers'))
     : null
   , [firestore, user]);
   const { data: myOrders, isLoading: ordersLoading } = useCollection<UserGameOffer>(myOrdersQuery);
+
+  const sortedOrders = useMemo(() => {
+    if (!myOrders) return [];
+    return [...myOrders].sort((a, b) => {
+        const dateA = a.createdAt as any;
+        const dateB = b.createdAt as any;
+        if (dateA?.seconds && dateB?.seconds) {
+            return dateB.seconds - dateA.seconds;
+        }
+        return 0;
+    });
+  }, [myOrders]);
 
 
   const groupedOffers = useMemo(() => {
@@ -274,8 +283,8 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
             </TableRow>
           </TableHeader>
           <TableBody>
-            {myOrders && myOrders.length > 0 ? (
-              myOrders.map((order) => (
+            {sortedOrders && sortedOrders.length > 0 ? (
+              sortedOrders.map((order) => (
                 <TableRow key={order.id}>
                   <TableCell className="font-medium">{order.offerName}</TableCell>
                   <TableCell>{Math.round(order.price)} ج.س</TableCell>
@@ -399,5 +408,3 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
 };
 
 export default UserDashboard;
-
-    
