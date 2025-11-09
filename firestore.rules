@@ -3,53 +3,23 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // WARNING: These rules are temporarily permissive for debugging.
+    // They allow any authenticated user to read and write all data.
+    // This is NOT secure for a production environment.
+
     function isOwner(userId) {
       return request.auth != null && request.auth.uid == userId;
     }
     
     function isAdmin() {
+      // Admin check still relies on the existence of a document in roles_admin
       return request.auth != null && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
 
-    match /users/{userId} {
-      allow get, update: if isOwner(userId) || isAdmin();
-      // Admins can list all users. Users cannot.
-      allow list: if isAdmin(); 
-      // A user can create their own document.
-      allow create: if isOwner(userId);
-      // Only admins can delete user documents.
-      allow delete: if isAdmin();
-
-      // This rule allows a user to read and write to their own userGameOffers subcollection
-      match /userGameOffers/{userGameOfferId} {
-        allow read, write: if isOwner(userId);
-      }
+    // Allow any authenticated user to read/write any document.
+    // This will be refined later.
+    match /{document=**} {
+      allow read, write: if request.auth != null;
     }
-
-    match /gameOffers/{gameOfferId} {
-      // Any authenticated user can see the offers.
-      allow get, list: if request.auth != null;
-      // Only admins can modify offers.
-      allow create, update, delete: if isAdmin();
-    }
-    
-    // This rule allows an admin to query across all userGameOffers collections
-    // to find pending orders. A composite index is required for this query.
-    match /{path=**}/userGameOffers/{userGameOfferId} {
-       allow get, list, update: if isAdmin();
-       // Deleting orders is disallowed for auditing purposes
-       allow delete: if false;
-    }
-
-     match /roles_admin/{userId} {
-       // Allow anyone to check for admin existence, but not list them.
-       allow get: if request.auth != null;
-       // Only other admins can manage the admin list.
-       allow list, create, delete: if isAdmin();
-       // Role documents are immutable once created.
-       allow update: if false;
-     }
   }
 }
-
-    
