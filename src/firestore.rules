@@ -1,5 +1,4 @@
 
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -14,12 +13,16 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
-      // Allow any authenticated user to list users, the client-side code will only do this for admins.
-      allow list: if request.auth != null;
+      allow list: if isAdmin(); // Only admin can list all users
       allow create: if isOwner(userId);
-      // Allow user to update their own balance, but with a transaction to ensure validity
       allow update: if (isOwner(userId) && request.resource.data.balance <= resource.data.balance) || isAdmin();
       allow delete: if isAdmin();
+      
+      // Rule for user's own orders subcollection.
+      // This allows a user to read and write to their own orders list.
+      match /userGameOffers/{userGameOfferId} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     match /gameOffers/{gameOfferId} {
@@ -27,20 +30,12 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
     
-    // Admins can query the collection group and update any order.
-    // Users can only create their own orders, and read them via a query with a 'where' clause.
-    match /userGameOffers/{userGameOfferId} {
+    // This collectionGroup handles permissions for admins to query across ALL userGameOffers.
+    // It is separate from the user's direct access rule above.
+    match /{path=**}/userGameOffers/{userGameOfferId} {
+       // Admins can read and update any order.
        allow get, list, update: if isAdmin();
-       // Users can create their own documents
-       allow create: if isOwner(request.resource.data.userId);
-       // Reading is more complex for users. They can't `list` the whole collection.
-       // They can only read their own documents, which is enforced by the client-side query.
-       // This 'get' rule allows a user to fetch a specific order if they know the ID.
-       allow get: if isOwner(resource.data.userId);
-       // A regular user cannot delete or update orders.
-       allow delete: if false;
     }
-
 
      match /roles_admin/{userId} {
        allow get: if true;
