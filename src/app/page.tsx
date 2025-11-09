@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { User as FirebaseAuthUser } from 'firebase/auth';
-import { doc, setDoc, getDocs, query, where, collection, runTransaction } from 'firebase/firestore';
+import { doc, getDoc, setDoc, runTransaction, collection } from 'firebase/firestore';
 import type { User } from '@/lib/types';
 import { useAuth, useUser, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
 
@@ -40,40 +40,39 @@ export default function Home() {
       if (!firestore) return;
       const userRef = doc(firestore, 'users', authUser.uid);
       
-      // Check if document already exists
-      const userDoc = await runTransaction(firestore, async transaction => {
-        const docSnapshot = await transaction.get(userRef);
-        return docSnapshot;
-      });
-
-      if (userDoc.exists()) {
-        return; // Document already exists, do nothing.
-      }
-
-      // If document doesn't exist, create it.
       try {
-        const walletId = Math.floor(1000000 + Math.random() * 9000000).toString();
-        const userRole = authUser.email?.toLowerCase() === 'admin@king.store' ? 'admin' : 'user';
+        await runTransaction(firestore, async (transaction) => {
+          const docSnapshot = await transaction.get(userRef);
 
-        const newUser: Omit<User, 'id'> = {
-            walletId,
-            // Use email as a fallback for username, or a default value
-            username: authUser.displayName || authUser.email?.split('@')[0] || 'New User', 
-            email: authUser.email || '',
-            balance: 0,
-            role: userRole,
-        };
+          if (docSnapshot.exists()) {
+            return; // Document already exists, do nothing.
+          }
 
-        await setDoc(userRef, newUser);
-        
-        // Handle admin role creation
-        if (userRole === 'admin') {
-            const adminRoleDocRef = doc(firestore, "roles_admin", authUser.uid);
-            await setDoc(adminRoleDocRef, { isAdmin: true });
-        }
+          // If document doesn't exist, create it.
+          const walletId = Math.floor(1000000 + Math.random() * 9000000).toString();
+          const userRole = authUser.email?.toLowerCase() === 'admin@king.store' ? 'admin' : 'user';
+
+          const newUser: Omit<User, 'id'> = {
+              walletId,
+              username: authUser.displayName || authUser.email?.split('@')[0] || 'New User', 
+              email: authUser.email || '',
+              balance: 0,
+              role: userRole,
+          };
+          
+          transaction.set(userRef, newUser);
+
+          // Handle admin role creation
+          if (userRole === 'admin') {
+              const adminRoleDocRef = doc(firestore, "roles_admin", authUser.uid);
+              transaction.set(adminRoleDocRef, { created: new Date() });
+          }
+        });
+
         toast({ title: "مرحباً بك!", description: "تم إعداد ملفك الشخصي بنجاح." });
+
       } catch (error: any) {
-        console.error("Error creating user document:", error);
+        console.error("Error creating user document in transaction:", error);
         toast({
           variant: "destructive",
           title: "خطأ في إعداد الملف الشخصي",
@@ -89,6 +88,14 @@ export default function Home() {
 
 
   const handleLogin = async (email: string, password: string): Promise<boolean> => {
+    if (!auth) {
+        toast({
+            variant: "destructive",
+            title: "خطأ",
+            description: "خدمات Firebase غير متاحة حاليًا."
+        });
+        return false;
+    }
     try {
       await signInWithEmailAndPassword(auth, email, password);
       toast({
@@ -118,8 +125,10 @@ export default function Home() {
     }
     
     try {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        // The user document will be created by the useEffect hook upon successful authentication.
+        await createUserWithEmailAndPassword(auth, email, password);
+        // The user document will be created by the useEffect hook upon the *next* sign-in.
+        // For now, we sign them out and ask them to log in.
+        auth.signOut();
         toast({ title: 'نجاح', description: 'تم إنشاء حسابك! الرجاء تسجيل الدخول للمتابعة.' });
         setView('login'); // Switch to login view after successful registration
         return true;
