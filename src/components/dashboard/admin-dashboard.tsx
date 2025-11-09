@@ -53,7 +53,12 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
   }, [firestore, isCurrentUserAdmin]);
   const { data: displayUsers, isLoading: usersLoading } = useCollection<User>(usersQuery);
 
-  const offersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'gameOffers') : null, [firestore]);
+  const offersQuery = useMemoFirebase(() => {
+    if (firestore && isCurrentUserAdmin) {
+        return collection(firestore, 'gameOffers');
+    }
+    return null;
+  }, [firestore, isCurrentUserAdmin]);
   const { data: offers, isLoading: offersLoading, error: offersError } = useCollection<Offer>(offersQuery);
 
   // Step 3: Fetch pending orders using collectionGroup if the user is an admin.
@@ -284,7 +289,7 @@ const renderOrdersContent = () => {
     }
 
     if (!isCurrentUserAdmin) {
-      return <p className="text-center text-destructive p-4">ليس لديك صلاحية عرض هذه البيانات.</p>
+      return <p className="text-center text-muted-foreground p-4">يتم التحقق من صلاحيات الأدمن...</p>
     }
 
     if (!pendingOrders || pendingOrders.length === 0) {
@@ -399,7 +404,7 @@ const renderOrdersContent = () => {
                             onChange={(e) => setTargetWalletId(e.target.value)}
                         />
                     </div>
-                    <Button onClick={handleSearchUser} disabled={isProcessing} className="w-full">
+                    <Button onClick={handleSearchUser} disabled={isProcessing || !isCurrentUserAdmin} className="w-full">
                         {isProcessing ? <Loader2 className="animate-spin"/> : <Search />}
                         بحث عن المستخدم
                     </Button>
@@ -416,7 +421,21 @@ const renderOrdersContent = () => {
     );
   }
 
-  if (!isCurrentUserAdmin) {
+  if (!authUser) {
+     return (
+       <CardContent>
+          <div className="text-center p-10">
+            <h3 className="text-xl font-bold text-destructive">وصول مرفوض</h3>
+            <p className="text-muted-foreground mt-2">تحتاج لتسجيل الدخول للوصول لهذه الصفحة.</p>
+             <Button onClick={onLogout} className="mt-4">
+                الذهاب لصفحة الدخول
+            </Button>
+          </div>
+       </CardContent>
+    );
+  }
+
+  if (!isCurrentUserAdmin && !isCurrentUserLoading) {
     return (
        <CardContent>
           <div className="text-center p-10">
