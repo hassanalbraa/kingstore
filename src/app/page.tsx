@@ -1,9 +1,9 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { User as FirebaseAuthUser } from 'firebase/auth';
-import { doc, setDoc, getDocs, query, where, collection, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, getDocs, query, where, collection, runTransaction } from 'firebase/firestore';
 import type { User } from '@/lib/types';
 import { useAuth, useUser, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
 
@@ -34,6 +34,60 @@ export default function Home() {
 
   const { data: currentUser, isLoading: isUserDocLoading } = useDoc<User>(userDocRef);
 
+  // Effect to create user document if it doesn't exist after login
+  useEffect(() => {
+    const createUserDocument = async (authUser: FirebaseAuthUser) => {
+      if (!firestore) return;
+      const userRef = doc(firestore, 'users', authUser.uid);
+      
+      // Check if document already exists
+      const userDoc = await runTransaction(firestore, async transaction => {
+        const docSnapshot = await transaction.get(userRef);
+        return docSnapshot;
+      });
+
+      if (userDoc.exists()) {
+        return; // Document already exists, do nothing.
+      }
+
+      // If document doesn't exist, create it.
+      try {
+        const walletId = Math.floor(1000000 + Math.random() * 9000000).toString();
+        const userRole = authUser.email?.toLowerCase() === 'admin@king.store' ? 'admin' : 'user';
+
+        const newUser: Omit<User, 'id'> = {
+            walletId,
+            // Use email as a fallback for username, or a default value
+            username: authUser.displayName || authUser.email?.split('@')[0] || 'New User', 
+            email: authUser.email || '',
+            balance: 0,
+            role: userRole,
+        };
+
+        await setDoc(userRef, newUser);
+        
+        // Handle admin role creation
+        if (userRole === 'admin') {
+            const adminRoleDocRef = doc(firestore, "roles_admin", authUser.uid);
+            await setDoc(adminRoleDocRef, { isAdmin: true });
+        }
+        toast({ title: "مرحباً بك!", description: "تم إعداد ملفك الشخصي بنجاح." });
+      } catch (error: any) {
+        console.error("Error creating user document:", error);
+        toast({
+          variant: "destructive",
+          title: "خطأ في إعداد الملف الشخصي",
+          description: "لم نتمكن من إنشاء بيانات حسابك. الرجاء المحاولة مرة أخرى."
+        });
+      }
+    };
+
+    if (firebaseUser && !isUserDocLoading && !currentUser) {
+      createUserDocument(firebaseUser);
+    }
+  }, [firebaseUser, currentUser, isUserDocLoading, firestore, toast]);
+
+
   const handleLogin = async (email: string, password: string): Promise<boolean> => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
@@ -41,7 +95,7 @@ export default function Home() {
         title: "تم تسجيل الدخول بنجاح",
         description: `أهلاً بك!`,
       });
-      // The view will change automatically based on the user state change
+      // View will change automatically via the user state listener
       return true;
     } catch (error: any) {
        toast({
@@ -53,100 +107,31 @@ export default function Home() {
     }
   };
   
-  const generateUniqueWalletId = async (): Promise<string> => {
-    let walletId: string;
-    let isUnique = false;
-    const usersRef = collection(firestore, 'users');
-
-    while (!isUnique) {
-      // Generate a 7-digit number as a string
-      walletId = Math.floor(1000000 + Math.random() * 9000000).toString();
-      
-      const q = query(usersRef, where("walletId", "==", walletId));
-      const querySnapshot = await getDocs(q);
-      
-      if (querySnapshot.empty) {
-        isUnique = true;
-      }
-    }
-    return walletId!;
-  };
-
-
   const handleRegister = async (username: string, email: string, password: string): Promise<boolean> => {
-    // 1. Check if firestore and auth are available to prevent runtime errors
-    if (!firestore || !auth) {
+    if (!auth) {
         toast({
             variant: "destructive",
             title: "خطأ",
-            description: "خدمات Firebase غير متاحة حاليًا. الرجاء المحاولة مرة أخرى لاحقًا."
+            description: "خدمات Firebase غير متاحة حاليًا."
         });
         return false;
     }
     
     try {
-        // 2. Create the user in Firebase Auth
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const authUser = userCredential.user;
-
-        // 3. Explicitly sign in to ensure the auth state is active for security rules.
-        // This is the crucial step to make `request.auth` available in rules.
-        await signInWithEmailAndPassword(auth, email, password);
-        
-        // 4. Prepare the user data and the batch write operation
-        const walletId = await generateUniqueWalletId();
-        const userRole = email.toLowerCase() === 'admin@king.store' ? 'admin' : 'user';
-
-        const newUser: User = {
-            id: authUser.uid,
-            walletId,
-            username,
-            email,
-            balance: 0,
-            role: userRole,
-        };
-      
-        // Create a batch
-        const batch = writeBatch(firestore);
-      
-        // Set the user document
-        const userDocRef = doc(firestore, "users", authUser.uid);
-        batch.set(userDocRef, newUser);
-
-        // If the user is an admin, also set their role document
-        if (userRole === 'admin') {
-            const adminRoleDocRef = doc(firestore, "roles_admin", authUser.uid);
-            // The data here can be simple, its existence is what matters for the rules
-            batch.set(adminRoleDocRef, { isAdmin: true });
-        }
-
-        // 5. Commit the batch atomically
-        await batch.commit();
-
-        toast({ title: 'نجاح', description: 'تم إنشاء حسابك وتسجيل دخولك بنجاح!' });
-        // The view will change automatically based on the user state changing from the sign-in.
+        // The user document will be created by the useEffect hook upon successful authentication.
+        toast({ title: 'نجاح', description: 'تم إنشاء حسابك! الرجاء تسجيل الدخول للمتابعة.' });
+        setView('login'); // Switch to login view after successful registration
         return true;
 
     } catch (error: any) {
         console.error("Registration Error:", error);
-
-        // Best-effort cleanup of the created auth user if Firestore operations fail
-        if (auth.currentUser && auth.currentUser.email === email) {
-            try {
-                await auth.currentUser.delete();
-                console.log("Rolled back Auth user creation due to Firestore error.");
-            } catch (deleteError) {
-                console.error("Critical: Failed to rollback Auth user creation:", deleteError);
-            }
-        }
         
         let description = "حدث خطأ غير متوقع أثناء إنشاء الحساب.";
         if (error.code === 'auth/email-already-in-use') {
             description = "هذا البريد الإلكتروني مستخدم بالفعل. الرجاء استخدام بريد آخر.";
         } else if (error.code === 'auth/weak-password') {
             description = "كلمة المرور ضعيفة جدًا. يجب أن تتكون من 6 أحرف على الأقل.";
-        } else if (error.code === 'permission-denied') {
-            description = "ليس لديك الصلاحية لإنشاء هذا الحساب. هناك مشكلة في قواعد الأمان."
         }
         
         toast({ variant: "destructive", title: "خطأ في إنشاء الحساب", description });
@@ -183,31 +168,32 @@ export default function Home() {
   }
 
   const handleBackToDashboard = () => {
+    // Rely on the currentUser state to determine the correct dashboard
     if (currentUser?.role === 'admin') {
       setView('admin_dashboard');
     } else {
       setView('user_dashboard');
     }
   };
-
+  
   const renderView = () => {
+    // Show loader while checking auth state OR while loading the user document
     if (isUserLoading || (firebaseUser && isUserDocLoading)) {
       return <div className="flex justify-center items-center p-10"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
     }
     
+    // Once we have a firebaseUser and we have confirmed the user document is loaded (or not)
     if (firebaseUser && currentUser) {
        if (view === 'settings') {
          return <SettingsPage onBack={handleBackToDashboard} onChangePassword={handleChangePassword}/>;
        }
-       // Since the logic for determining the user from walletId for the admin is complex,
-       // we pass the user's UID to fund the wallet, which is the document ID in the 'users' collection.
        if (currentUser.role === 'admin') {
          return <AdminDashboard onLogout={handleLogout} />
        }
        return <UserDashboard user={currentUser} onLogout={handleLogout} onGoToSettings={handleGoToSettings} />;
     }
 
-    // If no user, show login or register
+    // If no user, show login or register. Also handles the case where user doc is still being created.
     switch (view) {
       case 'register':
         return <RegisterForm onRegister={handleRegister} onSwitchToLogin={() => handleSwitchView('login')} />;
