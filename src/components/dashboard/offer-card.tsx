@@ -29,7 +29,7 @@ const OfferCard = ({ offer }: OfferCardProps) => {
             />
           </div>
         <h4 className="text-lg font-semibold text-secondary-foreground">{offer.name}</h4>
-        <p className="text-xl font-bold text-primary">${offer.price.toFixed(2)}</p>
+        <p className="text-xl font-bold text-primary">{offer.price.toFixed(2)} جنيه سوداني</p>
       </CardContent>
     </Card>
   );
