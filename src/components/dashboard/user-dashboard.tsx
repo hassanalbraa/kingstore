@@ -1,16 +1,15 @@
 "use client";
 
+import { useState, useMemo } from 'react';
 import type { User, Offer } from '@/lib/types';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
 import { CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import OfferCard from './offer-card';
-import { Settings, LogOut, Loader2, Copy } from 'lucide-react';
+import GameCard from './game-card'; // Import the new component
+import { Settings, LogOut, Copy, ArrowRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useMemo } from 'react';
-import { initialOffers as gameOffers } from '@/lib/seed'; // Import static data
+import { initialOffers as gameOffers } from '@/lib/seed';
 
 interface UserDashboardProps {
   user: User;
@@ -20,13 +19,12 @@ interface UserDashboardProps {
 
 const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) => {
   const { toast } = useToast();
-  
-  // We will use static data for now to bypass the persistent Firestore security rule issue.
+  const [selectedGame, setSelectedGame] = useState<string | null>(null);
+
   const offersLoading = false;
   
   const groupedOffers = useMemo(() => {
     if (!gameOffers) return {};
-    // Add a dummy id to the static offers to satisfy the Offer type
     const offersWithId: Offer[] = gameOffers.map((offer, index) => ({
         ...offer,
         id: `static-offer-${index}`
@@ -40,14 +38,59 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
       acc[gameName].push(offer);
       return acc;
     }, {} as Record<string, Offer[]>);
-  }, [gameOffers]);
+  }, []);
 
+  const gameNames = useMemo(() => Object.keys(groupedOffers), [groupedOffers]);
 
   const handleCopyWalletId = (walletId: string) => {
     navigator.clipboard.writeText(walletId);
     toast({title: "تم النسخ!", description: "تم نسخ رقم محفظتك."})
   }
 
+  const renderContent = () => {
+    if (offersLoading) {
+      return <div className="flex justify-center"><p>جاري تحميل العروض...</p></div>;
+    }
+
+    // If a game is selected, show its offers
+    if (selectedGame && groupedOffers[selectedGame]) {
+      return (
+        <div>
+          <div className="flex items-center mb-4">
+             <Button variant="ghost" size="icon" onClick={() => setSelectedGame(null)}>
+                <ArrowRight className="h-5 w-5" />
+             </Button>
+             <h4 className="text-lg font-bold mr-2">{selectedGame}</h4>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {groupedOffers[selectedGame].map((offer) => (
+              <OfferCard key={offer.id} offer={offer} />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // Otherwise, show the list of games
+    return (
+      <div>
+        <h3 className="text-xl font-semibold mb-4 text-center">اختر لعبة</h3>
+        {gameNames.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {gameNames.map((gameName) => (
+              <GameCard 
+                key={gameName} 
+                gameName={gameName} 
+                onClick={() => setSelectedGame(gameName)} 
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-center text-muted-foreground">لا توجد عروض متاحة حاليًا. اطلب من الأدمن إضافة العروض.</p>
+        )}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -75,23 +118,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
       </CardHeader>
       <Separator />
       <CardContent className="pt-6 space-y-8">
-        <h3 className="text-xl font-semibold mb-4 text-center">العروض المتاحة</h3>
-        {offersLoading ? (
-          <div className="flex justify-center"><Loader2 className="animate-spin h-10 w-10 text-primary" /></div>
-        ) : Object.keys(groupedOffers).length === 0 ? (
-          <p className="text-center text-muted-foreground">لا توجد عروض متاحة حاليًا. اطلب من الأدمن إضافة العروض.</p>
-        ) : (
-          Object.entries(groupedOffers).map(([gameName, offers]) => (
-            <div key={gameName}>
-              <h4 className="text-lg font-bold mb-3 border-b-2 border-primary pb-2">{gameName}</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {offers.map((offer) => (
-                  <OfferCard key={offer.id} offer={offer} />
-                ))}
-              </div>
-            </div>
-          ))
-        )}
+        {renderContent()}
       </CardContent>
     </>
   );
