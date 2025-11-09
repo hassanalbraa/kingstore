@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { LogOut, Edit, Save, XCircle, Loader2, PlusCircle, Copy, Database, Gift } from 'lucide-react';
+import { LogOut, Edit, Save, XCircle, Loader2, PlusCircle, Copy, Database, Gift, Search, ArrowRight, CheckCircle, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { seedGameOffers } from '@/lib/seed';
 import { Combobox } from '@/components/ui/combobox';
@@ -20,13 +20,20 @@ interface AdminDashboardProps {
   onLogout: () => void;
 }
 
+type FundingStep = 'search' | 'confirm' | 'success';
+
+interface FundingSuccessInfo {
+    username: string;
+    amount: number;
+}
+
 const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
   const firestore = useFirestore();
   const { user: adminUser } = useUser();
   const { toast } = useToast();
 
   const usersQuery = useMemoFirebase(() => {
-    if (firestore && adminUser && adminUser.email === 'admin@king.store') {
+    if (firestore && adminUser?.role === 'admin') {
         return query(collection(firestore, 'users'), where('role', '==', 'user'));
     }
     return null;
@@ -39,9 +46,15 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
   const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
   const [tempPrice, setTempPrice] = useState('');
 
+  // --- Funding State ---
+  const [fundingStep, setFundingStep] = useState<FundingStep>('search');
   const [targetWalletId, setTargetWalletId] = useState('');
   const [amountToAdd, setAmountToAdd] = useState('');
-  const [isFunding, setIsFunding] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [foundUser, setFoundUser] = useState<User | null>(null);
+  const [successInfo, setSuccessInfo] = useState<FundingSuccessInfo | null>(null);
+  // ---------------------
+
   const [isSeeding, setIsSeeding] = useState(false);
 
   // New state for adding offers
@@ -106,11 +119,38 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
     }
   };
 
-
-  const handleFundWallet = async () => {
-    if (!targetWalletId || !amountToAdd) {
-      toast({ variant: 'destructive', title: 'خطأ', description: 'الرجاء إدخال رقم المحفظة والمبلغ.' });
+  const handleSearchUser = async () => {
+    if (!targetWalletId) {
+      toast({ variant: 'destructive', title: 'خطأ', description: 'الرجاء إدخال رقم المحفظة.' });
       return;
+    }
+    
+    setIsProcessing(true);
+    try {
+        if (!firestore) throw new Error("Firestore is not available");
+        const usersRef = collection(firestore, 'users');
+        const q = query(usersRef, where("walletId", "==", targetWalletId));
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+            setFoundUser(null);
+            throw new Error("رقم المحفظة غير موجود!");
+        }
+
+        const userDoc = querySnapshot.docs[0];
+        setFoundUser({ id: userDoc.id, ...userDoc.data() } as User);
+        setFundingStep('confirm');
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'فشل البحث', description: error.message || 'حدث خطأ أثناء البحث عن المستخدم.' });
+    } finally {
+        setIsProcessing(false);
+    }
+  };
+
+  const handleConfirmFunding = async () => {
+    if (!foundUser || !amountToAdd) {
+        toast({ variant: 'destructive', title: 'خطأ', description: 'بيانات المستخدم أو المبلغ غير مكتملة.' });
+        return;
     }
     
     const amount = parseFloat(amountToAdd);
@@ -119,19 +159,10 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
       return;
     }
     
-    setIsFunding(true);
+    setIsProcessing(true);
     try {
       if (!firestore) throw new Error("Firestore is not available");
-      const usersRef = collection(firestore, 'users');
-      const q = query(usersRef, where("walletId", "==", targetWalletId));
-      const querySnapshot = await getDocs(q);
-
-      if (querySnapshot.empty) {
-        throw new Error("رقم المحفظة غير موجود!");
-      }
-
-      const userDoc = querySnapshot.docs[0];
-      const userRef = userDoc.ref;
+      const userRef = doc(firestore, 'users', foundUser.id);
       
       await runTransaction(firestore, async (transaction) => {
         const freshUserDoc = await transaction.get(userRef);
@@ -142,16 +173,24 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
         const newBalance = currentBalance + amount;
         transaction.update(userRef, { balance: newBalance });
       });
+      
+      setSuccessInfo({ username: foundUser.username, amount: amount });
+      setFundingStep('success');
 
-      toast({ title: 'نجاح', description: `تم شحن محفظة ${targetWalletId} بمبلغ ${amount.toFixed(2)} ج.س` });
-      setTargetWalletId('');
-      setAmountToAdd('');
     } catch (error: any) {
       console.error(error);
       toast({ variant: 'destructive', title: 'فشل الشحن', description: error.message || 'حدث خطأ أثناء شحن المحفظة.' });
     } finally {
-      setIsFunding(false);
+      setIsProcessing(false);
     }
+  };
+  
+  const resetFundingFlow = () => {
+    setFundingStep('search');
+    setTargetWalletId('');
+    setAmountToAdd('');
+    setFoundUser(null);
+    setSuccessInfo(null);
   };
   
   const handleCopyWalletId = (walletId: string) => {
@@ -187,6 +226,74 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
       </div>
     )
   }
+
+  const renderFundWalletContent = () => {
+    switch (fundingStep) {
+        case 'success':
+            return (
+                <div className="text-center p-6 flex flex-col items-center">
+                    <CheckCircle className="h-16 w-16 text-green-500 mb-4" />
+                    <h3 className="text-xl font-bold">تمت العملية بنجاح</h3>
+                    <p className="text-muted-foreground mt-2">
+                        تم شحن محفظة <span className="font-semibold text-primary">{successInfo?.username}</span> بمبلغ <span className="font-semibold text-primary">{successInfo?.amount.toFixed(2)} ج.س</span>.
+                    </p>
+                    <Button onClick={resetFundingFlow} className="mt-6 w-full max-w-sm">
+                        <RefreshCw />
+                        إجراء عملية شحن جديدة
+                    </Button>
+                </div>
+            );
+        case 'confirm':
+            return (
+                <div className="space-y-4">
+                    <Button variant="ghost" onClick={() => setFundingStep('search')} className="mb-2">
+                        <ArrowRight className="ml-2" />
+                        الرجوع للبحث
+                    </Button>
+                    <div className="p-4 bg-secondary rounded-lg text-center">
+                        <p className="text-sm text-secondary-foreground">سيتم شحن محفظة المستخدم:</p>
+                        <h4 className="text-xl font-bold text-primary">{foundUser?.username}</h4>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="amount">المبلغ</Label>
+                        <Input 
+                            id="amount"
+                            type="number"
+                            placeholder="أدخل المبلغ المراد شحنه"
+                            value={amountToAdd}
+                            onChange={(e) => setAmountToAdd(e.target.value)}
+                        />
+                    </div>
+                    <Button onClick={handleConfirmFunding} disabled={isProcessing} className="w-full">
+                        {isProcessing ? <Loader2 className="animate-spin"/> : <PlusCircle />}
+                        تأكيد الشحن
+                    </Button>
+                </div>
+            );
+        case 'search':
+        default:
+            return (
+                <div className="space-y-4">
+                    <h3 className="text-lg font-semibold">شحن رصيد محفظة</h3>
+                    <div className="space-y-2">
+                        <Label htmlFor="walletId">رقم المحفظة</Label>
+                        <Input 
+                            id="walletId"
+                            type="text"
+                            placeholder="أدخل رقم محفظة المستخدم المكون من 7 أرقام"
+                            value={targetWalletId}
+                            onChange={(e) => setTargetWalletId(e.target.value)}
+                        />
+                    </div>
+                    <Button onClick={handleSearchUser} disabled={isProcessing} className="w-full">
+                        {isProcessing ? <Loader2 className="animate-spin"/> : <Search />}
+                        بحث عن المستخدم
+                    </Button>
+                </div>
+            );
+    }
+};
+
 
   return (
     <>
@@ -245,32 +352,8 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
             </div>
           </TabsContent>
           <TabsContent value="fund">
-            <div className="mt-4 p-4 border rounded-lg space-y-4">
-               <h3 className="text-lg font-semibold">شحن رصيد محفظة</h3>
-               <div className="space-y-2">
-                 <Label htmlFor="walletId">رقم المحفظة</Label>
-                 <Input 
-                   id="walletId"
-                   type="text"
-                   placeholder="أدخل رقم محفظة المستخدم المكون من 7 أرقام"
-                   value={targetWalletId}
-                   onChange={(e) => setTargetWalletId(e.target.value)}
-                 />
-               </div>
-               <div className="space-y-2">
-                 <Label htmlFor="amount">المبلغ</Label>
-                 <Input 
-                  id="amount"
-                  type="number"
-                  placeholder="أدخل المبلغ المراد شحنه"
-                  value={amountToAdd}
-                  onChange={(e) => setAmountToAdd(e.target.value)}
-                  />
-               </div>
-               <Button onClick={handleFundWallet} disabled={isFunding} className="w-full">
-                 {isFunding ? <Loader2 className="animate-spin"/> : <PlusCircle />}
-                 شحن الرصيد
-               </Button>
+            <div className="mt-4 p-4 border rounded-lg">
+                {renderFundWalletContent()}
             </div>
           </TabsContent>
           <TabsContent value="offers">
@@ -373,5 +456,3 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
 };
 
 export default AdminDashboard;
-
-    

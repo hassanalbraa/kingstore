@@ -3,7 +3,7 @@
 export interface User {
   id: string;
   username: string;
-  email?: string;
+  email: string;
   balance: number;
   role: 'user' | 'admin';
   walletId: string;
@@ -30,5 +30,3 @@ export interface UserGameOffer {
   status: 'pending' | 'completed' | 'failed';
   createdAt: Date;
 }
-
-    
