@@ -472,7 +472,8 @@ const renderOrdersContent = () => {
           ) : (
             displayUsers?.map((user) => (
               <TableRow key={user.id}>
-                <TableCell className="font-medium">{user.username}</TableCell>                         <TableCell>
+                <TableCell className="font-medium">{user.username}</TableCell>
+                <TableCell>
                   <div className="flex items-center gap-2">
                      <span className="font-mono text-sm">{user.walletId}</span>
                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleCopyWalletId(user.walletId)}>
@@ -638,4 +639,6 @@ const renderOrdersContent = () => {
 };
 
 export default AdminDashboard;
+    
+
     
