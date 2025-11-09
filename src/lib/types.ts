@@ -1,3 +1,4 @@
+
 export interface User {
   id: string;
   username: string;
@@ -15,3 +16,16 @@ export interface Offer {
   unit: string;
   imageId?: string;
 }
+
+export interface UserGameOffer {
+  id: string;
+  userId: string;
+  gameOfferId: string;
+  gameName: string;
+  offerName: string;
+  price: number;
+  status: 'pending' | 'completed' | 'failed';
+  createdAt: Date;
+}
+
+    

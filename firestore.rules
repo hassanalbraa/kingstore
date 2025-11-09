@@ -1,3 +1,4 @@
+
 /**
  * @fileoverview Firestore Security Rules for KING STORE application.
  *
@@ -41,7 +42,8 @@ service cloud.firestore {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId) || isAdmin();
+      // Allow user to update their own balance, but with a transaction to ensure validity
+      allow update: if (isOwner(userId) && request.resource.data.balance <= resource.data.balance) || isAdmin();
       allow delete: if isAdmin();
     }
 
@@ -52,7 +54,11 @@ service cloud.firestore {
     }
 
     match /users/{userId}/userGameOffers/{userGameOfferId} {
-      allow get, list, create, update, delete: if isOwner(userId);
+      allow get, list, delete: if isOwner(userId);
+      // User can create their own purchase records
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      // User can't update past purchases, but admin can
+      allow update: if isAdmin();
     }
 
      match /roles_admin/{userId} {
@@ -65,3 +71,5 @@ service cloud.firestore {
      }
   }
 }
+
+    
