@@ -20,11 +20,8 @@ service cloud.firestore {
       allow update: if (isOwner(userId) && request.resource.data.balance != resource.data.balance) || isAdmin();
       allow delete: if isAdmin();
 
-      // Rule for the user's own game offers subcollection
-      match /userGameOffers/{offerId} {
-        // User can do anything to their own subcollection
-        allow read, write: if isOwner(userId);
-      }
+      // This subcollection rule is no longer needed as collectionGroup handles permissions more globally.
+      // match /userGameOffers/{offerId} { ... }
     }
 
     match /gameOffers/{gameOfferId} {
@@ -32,13 +29,16 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
     
-    // This collectionGroup is now only for the admin to query all pending orders across all users
+    // This collectionGroup handles all permissions for userGameOffers across the app.
     match /{path=**}/userGameOffers/{userGameOfferId} {
+       // Admins can read and update any order.
        allow get, list, update: if isAdmin();
-       // Disallow create/delete on this path to avoid confusion.
-       // Creation happens under /users/{userId}/...
-       // Deletion is handled by the user themselves.
-       allow create, delete: if false;
+       
+       // Users can create their own orders.
+       allow create: if isOwner(request.resource.data.userId);
+
+       // Regular users cannot delete orders directly.
+       allow delete: if false;
     }
 
      match /roles_admin/{userId} {
@@ -48,5 +48,3 @@ service cloud.firestore {
      }
   }
 }
-
-    
