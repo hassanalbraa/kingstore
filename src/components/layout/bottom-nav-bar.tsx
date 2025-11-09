@@ -2,7 +2,7 @@
 'use client';
 
 import { cn } from "@/lib/utils";
-import { Home, User, Wallet, Package, MessageSquare, LogOut, Users, Gift, LucideIcon } from "lucide-react";
+import { Home, User, Wallet, Package, MessageSquare, LogOut, Users, Gift, LucideIcon, Smartphone } from "lucide-react";
 import React from "react";
 
 const icons: { [key: string]: LucideIcon } = {
@@ -14,6 +14,7 @@ const icons: { [key: string]: LucideIcon } = {
   LogOut,
   Users,
   Gift,
+  Smartphone,
 };
 
 export interface NavItem {

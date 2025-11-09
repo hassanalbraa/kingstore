@@ -370,6 +370,12 @@ const renderOrdersContent = () => {
                            <p className="text-xs">اسم الحساب: {order.gameUsername}</p>
                            <p className="text-xs font-bold">المبلغ: {order.amount} ج.س</p>
                         </>
+                    ) : order.gameName === 'تحويل رصيد' ? (
+                        <>
+                           <p className="text-xs">الشبكة: {order.offerName.split(' ')[1]}</p>
+                           <p className="text-xs">رقم الهاتف: <span className="font-mono">{order.gameId}</span></p>
+                           <p className="text-xs font-bold">المبلغ: {order.amount} ج.س</p>
+                        </>
                     ) : (
                         <>
                            {order.gameId && <p className="text-xs">ID: <span className="font-mono">{order.gameId}</span></p>}

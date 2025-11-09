@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import OfferCard from './offer-card';
 import GameCard from './game-card';
-import { Copy, ArrowRight, Loader2, CreditCard, Home, User as UserIcon, Wallet, MessageSquare, LogOut, Package } from 'lucide-react';
+import { Copy, ArrowRight, Loader2, CreditCard, Home, User as UserIcon, Wallet, MessageSquare, LogOut, Package, Smartphone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -38,6 +38,7 @@ import { format } from 'date-fns';
 import BottomNavBar, { type NavItem } from '../layout/bottom-nav-bar';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '../ui/card';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 
 
 interface UserDashboardProps {
@@ -57,6 +58,14 @@ interface MyKashiState {
     amount: string;
 }
 
+// Credit Transfer specific state
+type NetworkProvider = "Zain" | "Sudani" | "MTN";
+interface CreditTransferState {
+    provider: NetworkProvider;
+    phoneNumber: string;
+    amount: string;
+}
+
 const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) => {
   const { toast } = useToast();
   const [selectedGame, setSelectedGame] = useState<string | null>(null);
@@ -64,9 +73,11 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
   const [isPurchaseLoading, setIsPurchaseLoading] = useState(false);
   const [showGameIdDialog, setShowGameIdDialog] = useState(false);
   const [showMyKashiDialog, setShowMyKashiDialog] = useState(false);
+  const [showCreditTransferDialog, setShowCreditTransferDialog] = useState(false);
   const [gameId, setGameId] = useState('');
   const [gameUsername, setGameUsername] = useState('');
   const [myKashiState, setMyKashiState] = useState<MyKashiState>({ accountNumber: '', accountName: '', amount: '' });
+  const [creditTransferState, setCreditTransferState] = useState<CreditTransferState>({ provider: 'Zain', phoneNumber: '', amount: '' });
   const [view, setView] = useState<UserView>('home');
   
   const firestore = useFirestore();
@@ -298,20 +309,107 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
         setShowMyKashiDialog(false);
         setMyKashiState({ accountNumber: '', accountName: '', amount: '' });
     }
-};
+  };
 
-const getStatusBadge = (status: 'pending' | 'completed' | 'failed') => {
-    switch (status) {
-        case 'pending':
-            return <Badge variant="secondary">قيد التنفيذ</Badge>;
-        case 'completed':
-            return <Badge>مكتمل</Badge>;
-        case 'failed':
-            return <Badge variant="destructive">فشل</Badge>;
-        default:
-            return <Badge variant="outline">غير معروف</Badge>;
+  const handleCreditTransfer = async () => {
+    if (!firestore || !user) return;
+    
+    const { provider, phoneNumber, amount: amountStr } = creditTransferState;
+    const amount = parseFloat(amountStr);
+
+    // Validation
+    if (isNaN(amount) || amount <= 0) {
+        toast({ variant: "destructive", title: "خطأ", description: "الرجاء إدخال مبلغ صحيح." });
+        return;
     }
-};
+    if (user.balance < amount) {
+        toast({ variant: "destructive", title: "رصيد غير كافٍ", description: `رصيدك (${user.balance} ج.س) لا يكفي لإتمام هذه العملية.` });
+        return;
+    }
+     if (!phoneNumber) {
+        toast({ variant: "destructive", title: "خطأ", description: "الرجاء إدخال رقم الهاتف." });
+        return;
+    }
+    if ((provider === 'Zain' || provider === 'MTN') && !phoneNumber.startsWith('09')) {
+        toast({ variant: "destructive", title: "رقم هاتف غير صحيح", description: `رقم ${provider} يجب أن يبدأ بـ 09.` });
+        return;
+    }
+     if (provider === 'Sudani' && !phoneNumber.startsWith('01')) {
+        toast({ variant: "destructive", title: "رقم هاتف غير صحيح", description: "رقم سوداني يجب أن يبدأ بـ 01." });
+        return;
+    }
+
+
+    setIsPurchaseLoading(true);
+    try {
+        const userRef = doc(firestore, 'users', user.id);
+
+        // Deduct balance
+        await runTransaction(firestore, async (transaction) => {
+            const userDoc = await transaction.get(userRef);
+            if (!userDoc.exists()) throw "المستخدم غير موجود!";
+            const currentBalance = userDoc.data().balance;
+            const newBalance = currentBalance - amount;
+            if (newBalance < 0) throw "رصيد غير كافٍ!";
+            transaction.update(userRef, { balance: newBalance });
+        });
+
+        // Create an order for the admin
+        const ordersCollectionRef = collection(firestore, 'users', user.id, 'userGameOffers');
+        const newOrderData: Omit<UserGameOffer, 'id'> = {
+            userId: user.id,
+            username: user.username,
+            walletId: user.walletId,
+            gameOfferId: 'credit-transfer',
+            gameName: 'تحويل رصيد',
+            offerName: `تحويل ${provider} ${amount} ج.س`,
+            price: amount,
+            amount: amount,
+            status: "pending",
+            createdAt: new Date(),
+            gameId: phoneNumber, // Use gameId to store phone number
+        };
+        await addDoc(ordersCollectionRef, newOrderData);
+
+        // Create a financial transaction record
+        const transactionCollectionRef = collection(firestore, 'users', user.id, 'transactions');
+        const newTransaction: Omit<Transaction, 'id'> = {
+            userId: user.id,
+            type: 'purchase',
+            amount: -amount,
+            description: `تحويل رصيد ${provider}: ${amount} ج.س`,
+            createdAt: new Date(),
+        };
+        await addDoc(transactionCollectionRef, newTransaction);
+
+        toast({
+            title: "تم استلام طلبك بنجاح!",
+            description: `سيتم تحويل مبلغ ${amount} ج.س إلى الرقم ${phoneNumber} قريباً.`,
+        });
+
+    } catch (error: any) {
+        console.error("Credit Transfer Error: ", error);
+        toast({ variant: "destructive", title: "فشل الطلب", description: error.toString() || "حدث خطأ أثناء محاولة إرسال الطلب." });
+    } finally {
+        setIsPurchaseLoading(false);
+        setShowCreditTransferDialog(false);
+        setCreditTransferState({ provider: 'Zain', phoneNumber: '', amount: '' });
+    }
+  };
+
+
+  const getStatusBadge = (status: 'pending' | 'completed' | 'failed') => {
+      switch (status) {
+          case 'pending':
+              return <Badge variant="secondary">قيد التنفيذ</Badge>;
+          case 'completed':
+              return <Badge>مكتمل</Badge>;
+          case 'failed':
+              return <Badge variant="destructive">فشل</Badge>;
+          default:
+              return <Badge variant="outline">غير معروف</Badge>;
+      }
+  };
 
 
   const renderHomeContent = () => {
@@ -360,6 +458,15 @@ const getStatusBadge = (status: 'pending' | 'completed' | 'failed') => {
                 <CardContent className="p-6 flex flex-col items-center justify-center text-center h-full">
                     <CreditCard className="h-12 w-12 text-primary mb-4 transition-transform group-hover:scale-110" />
                     <h3 className="text-lg font-bold text-secondary-foreground">تغذية ماي كاشي</h3>
+                </CardContent>
+            </Card>
+            <Card 
+                onClick={() => setShowCreditTransferDialog(true)}
+                className="bg-secondary border-2 border-transparent hover:border-primary transition-all duration-300 cursor-pointer group overflow-hidden"
+            >
+                <CardContent className="p-6 flex flex-col items-center justify-center text-center h-full">
+                    <Smartphone className="h-12 w-12 text-primary mb-4 transition-transform group-hover:scale-110" />
+                    <h3 className="text-lg font-bold text-secondary-foreground">تحويل رصيد</h3>
                 </CardContent>
             </Card>
         </div>
@@ -624,6 +731,60 @@ const getStatusBadge = (status: 'pending' | 'completed' | 'failed') => {
         </DialogContent>
       </Dialog>
 
+       <Dialog open={showCreditTransferDialog} onOpenChange={(open) => {
+          if (!open) {
+              setShowCreditTransferDialog(false);
+              setCreditTransferState({ provider: 'Zain', phoneNumber: '', amount: '' });
+          }
+      }}>
+        <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+                <DialogTitle>طلب تحويل رصيد</DialogTitle>
+                <DialogDescription>
+                    اختر الشبكة وأدخل الرقم والمبلغ. سيتم خصم المبلغ من محفظتك.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+                <div className="space-y-2">
+                    <Label>اختر الشبكة</Label>
+                    <RadioGroup 
+                        defaultValue="Zain" 
+                        className="flex gap-4"
+                        value={creditTransferState.provider}
+                        onValueChange={(value: NetworkProvider) => setCreditTransferState(s => ({...s, provider: value}))}
+                    >
+                        <div className="flex items-center space-x-2 space-x-reverse">
+                            <RadioGroupItem value="Zain" id="Zain" />
+                            <Label htmlFor="Zain">زين</Label>
+                        </div>
+                        <div className="flex items-center space-x-2 space-x-reverse">
+                            <RadioGroupItem value="Sudani" id="Sudani" />
+                            <Label htmlFor="Sudani">سوداني</Label>
+                        </div>
+                        <div className="flex items-center space-x-2 space-x-reverse">
+                            <RadioGroupItem value="MTN" id="MTN" />
+                            <Label htmlFor="MTN">MTN</Label>
+                        </div>
+                    </RadioGroup>
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="phone-number">رقم الهاتف</Label>
+                    <Input id="phone-number" type="tel" value={creditTransferState.phoneNumber} onChange={(e) => setCreditTransferState(s => ({...s, phoneNumber: e.target.value}))} placeholder="يبدأ بـ 09 أو 01" />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="credit-amount">المبلغ (ج.س)</Label>
+                    <Input id="credit-amount" type="number" value={creditTransferState.amount} onChange={(e) => setCreditTransferState(s => ({...s, amount: e.target.value}))} placeholder="المبلغ المراد تحويله" />
+                </div>
+            </div>
+            <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowCreditTransferDialog(false)}>إلغاء</Button>
+                <Button type="submit" onClick={handleCreditTransfer} disabled={isPurchaseLoading}>
+                    {isPurchaseLoading ? <Loader2 className="animate-spin" /> : "تأكيد وإرسال الطلب"}
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <BottomNavBar<UserView> items={navItems} activeView={view} setView={setView} />
     </div>
   );
@@ -632,6 +793,7 @@ const getStatusBadge = (status: 'pending' | 'completed' | 'failed') => {
 export default UserDashboard;
 
     
+
 
 
 
