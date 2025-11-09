@@ -108,7 +108,7 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
                               className="h-8 max-w-[100px]"
                             />
                           ) : (
-                            `${user.balance.toFixed(2)} جنيه سوداني`
+                            `${user.balance.toFixed(2)} ج.س`
                           )}
                         </TableCell>
                         <TableCell className="text-left">
@@ -154,7 +154,7 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
                               className="h-8 max-w-[100px]"
                             />
                           ) : (
-                            `${offer.price.toFixed(2)} جنيه سوداني`
+                            `${offer.price.toFixed(2)} ج.س`
                           )}
                         </TableCell>
                         <TableCell className="text-left">

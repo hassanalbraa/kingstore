@@ -26,7 +26,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
         <div className="flex justify-between items-center">
           <div>
             <h2 className="text-2xl font-bold">أهلاً بك، {user.username}</h2>
-            <p className="text-muted-foreground">رصيدك الحالي: <span className="font-bold text-primary">{user.balance.toFixed(2)} جنيه سوداني</span></p>
+            <p className="text-muted-foreground">رصيدك الحالي: <span className="font-bold text-primary">{user.balance.toFixed(2)} ج.س</span></p>
           </div>
           <div className="flex gap-2">
             <Button variant="ghost" size="icon" onClick={onGoToSettings} aria-label="الإعدادات">
