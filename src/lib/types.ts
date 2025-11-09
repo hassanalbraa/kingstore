@@ -25,14 +25,15 @@ export interface UserGameOffer {
   userId: string;
   username: string;
   walletId: string;
-  gameOfferId: string;
+  gameOfferId: string; // Will be 'my-kashi-topup' for this type of offer
   gameName: string;
   offerName: string;
-  price: number;
+  price: number; // For game offers, this is the fixed price. For My Kashi, it's the user-defined amount.
   status: 'pending' | 'completed' | 'failed';
   createdAt: Date | { seconds: number; nanoseconds: number; };
-  gameId?: string; // Optional: For game-specific user ID
-  gameUsername?: string; // Optional: For game-specific username
+  gameId?: string; // For game-specific user ID OR My Kashi account number
+  gameUsername?: string; // For game-specific username OR My Kashi account name
+  amount?: number; // Specifically for My Kashi top-ups
 }
 
 

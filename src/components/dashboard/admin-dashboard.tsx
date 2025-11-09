@@ -364,8 +364,18 @@ const renderOrdersContent = () => {
                   <TableCell className="font-medium">{order.username}</TableCell>
                   <TableCell>{order.offerName} ({order.gameName})</TableCell>
                   <TableCell>
-                    {order.gameId && <p className="text-xs">ID: <span className="font-mono">{order.gameId}</span></p>}
-                    {order.gameUsername && <p className="text-xs">الاسم: {order.gameUsername}</p>}
+                    {order.gameName === 'تغذية ماي كاشي' ? (
+                        <>
+                           <p className="text-xs">رقم الحساب: <span className="font-mono">{order.gameId}</span></p>
+                           <p className="text-xs">اسم الحساب: {order.gameUsername}</p>
+                           <p className="text-xs font-bold">المبلغ: {order.amount} ج.س</p>
+                        </>
+                    ) : (
+                        <>
+                           {order.gameId && <p className="text-xs">ID: <span className="font-mono">{order.gameId}</span></p>}
+                           {order.gameUsername && <p className="text-xs">الاسم: {order.gameUsername}</p>}
+                        </>
+                    )}
                   </TableCell>
                   <TableCell className="text-center">{getStatusBadge(order.status)}</TableCell>
                   <TableCell className="text-center">
