@@ -1,3 +1,28 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "game-1",
+      "description": "A character from the game Valorant aiming a weapon.",
+      "imageUrl": "https://images.unsplash.com/photo-1623820919239-0d0ff10797a1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHx2YWxvcmFudCUyMGdhbWV8ZW58MHx8fHwxNzYyNjk3NTkyfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "valorant game"
+    },
+    {
+      "id": "game-2",
+      "description": "Characters from Fortnite in a vibrant, cartoonish landscape.",
+      "imageUrl": "https://images.unsplash.com/photo-1590548141147-9fd4d57bfe1c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8Zm9ydG5pdGUlMjBnYW1lfGVufDB8fHx8MTc2MjU5NTE0NHww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "fortnite game"
+    },
+    {
+      "id": "game-3",
+      "description": "Soccer players in a stadium during a match.",
+      "imageUrl": "https://images.unsplash.com/photo-1624295019913-0420eae31f22?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHxmaWZhJTIwc29jY2VyfGVufDB8fHx8MTc2MjU5NTE0NHww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "fifa soccer"
+    },
+    {
+      "id": "game-4",
+      "description": "A stylish character in a city environment from Grand Theft Auto.",
+      "imageUrl": "https://images.unsplash.com/photo-1476036604315-fed0874dfd55?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxndGElMjBnYW1lfGVufDB8fHx8MTc2MjY5NzU5Mnww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "gta game"
+    }
+  ]
 }
