@@ -63,22 +63,14 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
 
   const myOrdersQuery = useMemoFirebase(() => 
     firestore && user 
-    ? query(collection(firestore, 'users', user.id, 'userGameOffers'))
+    ? query(
+        collection(firestore, 'userGameOffers'),
+        where('userId', '==', user.id),
+        orderBy('createdAt', 'desc')
+      )
     : null
   , [firestore, user]);
   const { data: myOrders, isLoading: ordersLoading } = useCollection<UserGameOffer>(myOrdersQuery);
-
-  const sortedOrders = useMemo(() => {
-    if (!myOrders) return [];
-    return [...myOrders].sort((a, b) => {
-        const dateA = a.createdAt as any;
-        const dateB = b.createdAt as any;
-        if (dateA?.seconds && dateB?.seconds) {
-            return dateB.seconds - dateA.seconds;
-        }
-        return 0;
-    });
-  }, [myOrders]);
 
 
   const groupedOffers = useMemo(() => {
@@ -137,7 +129,6 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
 
     try {
         const userRef = doc(firestore, 'users', user.id);
-        const userGameOffersCollectionRef = collection(firestore, `users/${user.id}/userGameOffers`);
 
         await runTransaction(firestore, async (transaction) => {
             const userDoc = await transaction.get(userRef);
@@ -150,15 +141,10 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
             if (newBalance < 0) {
               throw "رصيد غير كافٍ!";
             }
-
             transaction.update(userRef, { balance: newBalance });
-
-            // Since we are creating a new document in a subcollection, we don't set it in the transaction
-            // directly. We will create it after the transaction succeeds.
         });
 
-        // If transaction is successful, create the purchase order document.
-        const newPurchase: Omit<UserGameOffer, 'id' | 'createdAt'> & { createdAt: Date } = {
+        const newPurchaseData = {
             userId: user.id,
             username: user.username,
             walletId: user.walletId,
@@ -166,15 +152,16 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
             gameName: selectedOffer.gameName,
             offerName: selectedOffer.offerName,
             price: selectedOffer.price,
-            status: "pending",
+            status: "pending" as const,
             createdAt: new Date(),
             ...(GAMES_REQUIRING_ID.includes(selectedOffer.gameName) && {
                 gameId: gameId,
                 gameUsername: gameUsername
             })
         };
-        
-        await addDoc(userGameOffersCollectionRef, newPurchase);
+
+        await addDoc(collection(firestore, "userGameOffers"), newPurchaseData);
+
 
         toast({
             title: "تمت عملية الشراء بنجاح!",
@@ -283,8 +270,8 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sortedOrders && sortedOrders.length > 0 ? (
-              sortedOrders.map((order) => (
+            {myOrders && myOrders.length > 0 ? (
+              myOrders.map((order) => (
                 <TableRow key={order.id}>
                   <TableCell className="font-medium">{order.offerName}</TableCell>
                   <TableCell>{Math.round(order.price)} ج.س</TableCell>

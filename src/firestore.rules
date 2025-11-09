@@ -12,19 +12,10 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
-      allow list: if isAdmin(); // Only admin can list all users
+      allow get, update: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin(); 
       allow create: if isOwner(userId);
-      // Allow user to update their own balance, but only through a transaction
-      // Admin can update anything.
-      allow update: if (isOwner(userId) && request.resource.data.balance != resource.data.balance) || isAdmin();
       allow delete: if isAdmin();
-
-      // Rule for user's own orders subcollection.
-      // This allows a user to read (get, list) and write (create, update, delete) to their own orders list.
-      match /userGameOffers/{userGameOfferId} {
-        allow get, list, write: if isOwner(userId);
-      }
     }
 
     match /gameOffers/{gameOfferId} {
@@ -32,11 +23,11 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
     
-    // This collectionGroup handles permissions for admins to query across ALL userGameOffers.
-    // It is separate from the user's direct access rule above.
-    match /{path=**}/userGameOffers/{userGameOfferId} {
-       // Admins can read and update any order.
-       allow get, list, update: if isAdmin();
+    match /userGameOffers/{userGameOfferId} {
+       allow create: if isOwner(request.resource.data.userId);
+       allow list, get: if isAdmin() || (isOwner(request.query.where.userId) && request.query.where.userId == request.auth.uid);
+       allow update: if isAdmin();
+       allow delete: if false;
     }
 
      match /roles_admin/{userId} {
