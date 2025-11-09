@@ -5,7 +5,7 @@
 import { useState, useMemo } from 'react';
 import type { User, Offer, UserGameOffer } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, useUser } from '@/firebase';
-import { collection, doc, getDocs, query, where, runTransaction, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, query, where, runTransaction, updateDoc, collectionGroup } from 'firebase/firestore';
 import { CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -47,7 +47,7 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
 
   const pendingOrdersQuery = useMemoFirebase(() => 
     firestore && adminUser?.role === 'admin' 
-    ? query(collection(firestore, 'userGameOffers'), where('status', '==', 'pending')) 
+    ? query(collectionGroup(firestore, 'userGameOffers'), where('status', '==', 'pending')) 
     : null
   , [firestore, adminUser]);
   const { data: pendingOrders, isLoading: ordersLoading } = useCollection<UserGameOffer>(pendingOrdersQuery);
@@ -231,7 +231,7 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
     if (!firestore) return;
     setUpdatingOrderId(order.id);
     try {
-        const orderRef = doc(firestore, `userGameOffers`, order.id);
+        const orderRef = doc(firestore, 'users', order.userId, 'userGameOffers', order.id);
         await updateDoc(orderRef, { status: 'completed' });
         toast({ title: "تم!", description: "تم تحديث حالة الطلب إلى مكتمل." });
     } catch (error) {
@@ -327,7 +327,7 @@ const renderOrdersContent = () => {
                     <CheckCircle className="h-16 w-16 text-green-500 mb-4" />
                     <h3 className="text-xl font-bold">تمت العملية بنجاح</h3>
                     <p className="text-muted-foreground mt-2">
-                        تم شحن محفظة <span className="font-semibold text-primary">{successInfo?.username}</span> بمبلغ <span className="font-semibold text-primary">{Math.round(successInfo?.amount || 0)} ج.س</span>.
+                        تم شحن محفظة <span className="font-semibold text-primary">{successInfo?.username}</span> بمبلغ <span className="font-semibold text-primary">{successInfo?.amount || 0} ج.س</span>.
                     </p>
                     <Button onClick={resetFundingFlow} className="mt-6 w-full max-w-sm">
                         <RefreshCw />
@@ -434,7 +434,7 @@ const renderOrdersContent = () => {
                           </div>
                         </TableCell>
                         <TableCell>
-                          {`${Math.round(user.balance)} ج.س`}
+                          {`${user.balance} ج.س`}
                         </TableCell>
                       </TableRow>
                     ))
@@ -520,7 +520,7 @@ const renderOrdersContent = () => {
                                 className="h-8 max-w-[100px]"
                               />
                             ) : (
-                              `${Math.round(offer.price)} ج.س`
+                              `${offer.price} ج.س`
                             )}
                           </TableCell>
                           <TableCell className="text-left">

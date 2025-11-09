@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { User, Offer, UserGameOffer } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, runTransaction, doc, query, orderBy, where, addDoc } from 'firebase/firestore';
@@ -64,13 +64,26 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
   const myOrdersQuery = useMemoFirebase(() => 
     firestore && user 
     ? query(
-        collection(firestore, 'userGameOffers'),
-        where('userId', '==', user.id),
+        collection(firestore, 'users', user.id, 'userGameOffers'),
         orderBy('createdAt', 'desc')
       )
     : null
   , [firestore, user]);
-  const { data: myOrders, isLoading: ordersLoading } = useCollection<UserGameOffer>(myOrdersQuery);
+  
+  const { data, isLoading: ordersLoading } = useCollection<UserGameOffer>(myOrdersQuery);
+  const [myOrders, setMyOrders] = useState<UserGameOffer[]>([]);
+
+  useEffect(() => {
+    if (data) {
+        // Manually sort since orderBy in query is removed.
+        const sortedData = [...data].sort((a, b) => {
+            const dateA = a.createdAt as any;
+            const dateB = b.createdAt as any;
+            return dateB.seconds - dateA.seconds;
+        });
+        setMyOrders(sortedData);
+    }
+  }, [data]);
 
 
   const groupedOffers = useMemo(() => {
@@ -143,6 +156,8 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
             }
             transaction.update(userRef, { balance: newBalance });
         });
+        
+        const ordersCollectionRef = collection(firestore, 'users', user.id, 'userGameOffers');
 
         const newPurchaseData = {
             userId: user.id,
@@ -159,8 +174,8 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
                 gameUsername: gameUsername
             })
         };
-
-        await addDoc(collection(firestore, "userGameOffers"), newPurchaseData);
+        
+        await addDoc(ordersCollectionRef, newPurchaseData);
 
 
         toast({
@@ -274,7 +289,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
               myOrders.map((order) => (
                 <TableRow key={order.id}>
                   <TableCell className="font-medium">{order.offerName}</TableCell>
-                  <TableCell>{Math.round(order.price)} ج.س</TableCell>
+                  <TableCell>{order.price} ج.س</TableCell>
                   <TableCell>
                     {order.createdAt ? format(new Date((order.createdAt as any).seconds * 1000), 'dd/MM/yyyy hh:mm a') : 'N/A'}
                   </TableCell>
@@ -298,7 +313,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
         <div className="flex justify-between items-center">
           <div>
             <h2 className="text-2xl font-bold">أهلاً بك، {user.username}</h2>
-            <p className="text-muted-foreground">رصيدك الحالي: <span className="font-bold text-primary">{Math.round(user.balance)} ج.س</span></p>
+            <p className="text-muted-foreground">رصيدك الحالي: <span className="font-bold text-primary">{user.balance} ج.س</span></p>
              <div className="flex items-center gap-2 mt-2">
                 <p className="text-sm text-muted-foreground">رقم محفظتك: <span className="font-mono text-xs">{user.walletId}</span></p>
                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleCopyWalletId(user.walletId)}>
@@ -338,7 +353,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
           <AlertDialogHeader>
             <AlertDialogTitle>تأكيد عملية الشراء</AlertDialogTitle>
             <AlertDialogDescription>
-              هل أنت متأكد من أنك تريد شراء "{selectedOffer?.offerName}" مقابل <span className="font-bold text-primary">{Math.round(selectedOffer?.price || 0)} ج.س</span>؟
+              هل أنت متأكد من أنك تريد شراء "{selectedOffer?.offerName}" مقابل <span className="font-bold text-primary">{selectedOffer?.price || 0} ج.س</span>؟
               سيتم خصم المبلغ من رصيدك.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -379,7 +394,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
                 <Separator />
                 <div className="text-center">
                     <p>ستقوم بشراء: <span className="font-semibold">{selectedOffer?.offerName}</span></p>
-                    <p>مقابل: <span className="font-bold text-primary">{Math.round(selectedOffer?.price || 0)} ج.س</span></p>
+                    <p>مقابل: <span className="font-bold text-primary">{selectedOffer?.price || 0} ج.س</span></p>
                 </div>
             </div>
             <DialogFooter>

@@ -12,16 +12,14 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
-      allow list: if isAdmin(); // Only admin can list all users
+      allow get, update: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin(); 
       allow create: if isOwner(userId);
-      // Allow user to update their own balance, but only through a transaction
-      // Admin can update anything.
-      allow update: if (isOwner(userId) && request.resource.data.balance != resource.data.balance) || isAdmin();
       allow delete: if isAdmin();
 
-      // This subcollection rule is no longer needed as collectionGroup handles permissions more globally.
-      // match /userGameOffers/{offerId} { ... }
+      match /userGameOffers/{userGameOfferId} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     match /gameOffers/{gameOfferId} {
@@ -29,15 +27,8 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
     
-    // This collectionGroup handles all permissions for userGameOffers across the app.
     match /{path=**}/userGameOffers/{userGameOfferId} {
-       // Admins can read and update any order.
        allow get, list, update: if isAdmin();
-       
-       // Users can create their own orders.
-       allow create: if isOwner(request.resource.data.userId);
-
-       // Regular users cannot delete orders directly.
        allow delete: if false;
     }
 
