@@ -1,14 +1,15 @@
 "use client";
 
-import type { User } from '@/lib/types';
+import type { User, Offer } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { collection, query, orderBy } from 'firebase/firestore';
 import { CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import OfferCard from './offer-card';
 import { Settings, LogOut, Loader2, Copy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useMemo } from 'react';
 
 interface UserDashboardProps {
   user: User;
@@ -19,8 +20,26 @@ interface UserDashboardProps {
 const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) => {
   const firestore = useFirestore();
   const { toast } = useToast();
-  const offersQuery = useMemoFirebase(() => collection(firestore, 'gameOffers'), [firestore]);
-  const { data: gameOffers, isLoading: offersLoading } = useCollection<any>(offersQuery);
+  
+  const offersQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'gameOffers'), orderBy('gameName'), orderBy('price'));
+  }, [firestore]);
+  
+  const { data: gameOffers, isLoading: offersLoading } = useCollection<Offer>(offersQuery);
+
+  const groupedOffers = useMemo(() => {
+    if (!gameOffers) return {};
+    return gameOffers.reduce((acc, offer) => {
+      const gameName = offer.gameName;
+      if (!acc[gameName]) {
+        acc[gameName] = [];
+      }
+      acc[gameName].push(offer);
+      return acc;
+    }, {} as Record<string, Offer[]>);
+  }, [gameOffers]);
+
 
   const handleCopyWalletId = (walletId: string) => {
     navigator.clipboard.writeText(walletId);
@@ -53,21 +72,23 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
         </div>
       </CardHeader>
       <Separator />
-      <CardContent className="pt-6">
-        <h3 className="text-xl font-semibold mb-4">العروض المتاحة</h3>
+      <CardContent className="pt-6 space-y-8">
+        <h3 className="text-xl font-semibold mb-4 text-center">العروض المتاحة</h3>
         {offersLoading ? (
-          <div className="flex justify-center"><Loader2 className="animate-spin" /></div>
+          <div className="flex justify-center"><Loader2 className="animate-spin h-10 w-10 text-primary" /></div>
+        ) : Object.keys(groupedOffers).length === 0 ? (
+          <p className="text-center text-muted-foreground">لا توجد عروض متاحة حاليًا. اطلب من الأدمن إضافة العروض.</p>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {gameOffers?.map((offer) => (
-              <OfferCard key={offer.id} offer={{
-                id: offer.id,
-                name: offer.gameName,
-                price: offer.price,
-                imageId: offer.imageUrl?.split('/').pop() || '' // Extracting imageId from imageUrl
-              }} />
-            ))}
-          </div>
+          Object.entries(groupedOffers).map(([gameName, offers]) => (
+            <div key={gameName}>
+              <h4 className="text-lg font-bold mb-3 border-b-2 border-primary pb-2">{gameName}</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {offers.map((offer) => (
+                  <OfferCard key={offer.id} offer={offer} />
+                ))}
+              </div>
+            </div>
+          ))
         )}
       </CardContent>
     </>
@@ -75,5 +96,3 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
 };
 
 export default UserDashboard;
-
-    

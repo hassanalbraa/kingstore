@@ -9,7 +9,9 @@ export interface User {
 
 export interface Offer {
   id: string;
-  name: string;
+  gameName: string;
+  offerName: string;
   price: number;
-  imageId: string;
+  unit: string;
+  imageId?: string;
 }

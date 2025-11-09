@@ -10,8 +10,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { LogOut, Edit, Save, XCircle, Loader2, PlusCircle, Copy } from 'lucide-react';
+import { LogOut, Edit, Save, XCircle, Loader2, PlusCircle, Copy, Database } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { seedGameOffers } from '@/lib/seed';
+
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -25,7 +27,7 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
   const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
 
   const offersQuery = useMemoFirebase(() => collection(firestore, 'gameOffers'), [firestore]);
-  const { data: offers, isLoading: offersLoading } = useCollection<any>(offersQuery);
+  const { data: offers, isLoading: offersLoading, error: offersError } = useCollection<any>(offersQuery);
 
   const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
   const [tempPrice, setTempPrice] = useState('');
@@ -33,6 +35,18 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
   const [targetWalletId, setTargetWalletId] = useState('');
   const [amountToAdd, setAmountToAdd] = useState('');
   const [isFunding, setIsFunding] = useState(false);
+  const [isSeeding, setIsSeeding] = useState(false);
+
+  const handleSeedData = async () => {
+    setIsSeeding(true);
+    const result = await seedGameOffers(firestore);
+    if (result.success) {
+      toast({ title: 'نجاح', description: result.message });
+    } else {
+      toast({ variant: 'destructive', title: 'خطأ', description: result.message });
+    }
+    setIsSeeding(false);
+  };
 
   const handleFundWallet = async () => {
     if (!targetWalletId || !amountToAdd) {
@@ -48,6 +62,7 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
     
     setIsFunding(true);
     try {
+      if (!firestore) throw new Error("Firestore is not available");
       const usersRef = collection(firestore, 'users');
       const q = query(usersRef, where("walletId", "==", targetWalletId));
       const querySnapshot = await getDocs(q);
@@ -91,6 +106,7 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
   };
 
   const handleSaveOffer = (offerId: string) => {
+    if(!firestore) return;
     const newPrice = parseFloat(tempPrice);
     if (isNaN(newPrice) || newPrice < 0) {
       toast({ variant: 'destructive', title: 'خطأ', description: 'الرجاء إدخال سعر صحيح.' });
@@ -161,7 +177,7 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
                  <Label htmlFor="walletId">رقم المحفظة</Label>
                  <Input 
                    id="walletId"
-                   type="number"
+                   type="text"
                    placeholder="أدخل رقم محفظة المستخدم المكون من 7 أرقام"
                    value={targetWalletId}
                    onChange={(e) => setTargetWalletId(e.target.value)}
@@ -185,9 +201,19 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
           </TabsContent>
           <TabsContent value="offers">
             <div className="rounded-lg border mt-4">
+              <div className="p-4 border-b">
+                 <Button onClick={handleSeedData} disabled={isSeeding}>
+                    {isSeeding ? <Loader2 className="animate-spin"/> : <Database />}
+                    إضافة العروض الأولية
+                </Button>
+                <p className="text-xs text-muted-foreground mt-2">
+                  اضغط هنا لإضافة قائمة العروض المبدئية إلى قاعدة البيانات. هذه العملية تتم مرة واحدة فقط.
+                </p>
+              </div>
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>اللعبة</TableHead>
                     <TableHead>العرض</TableHead>
                     <TableHead>السعر</TableHead>
                     <TableHead className="text-left">تعديل</TableHead>
@@ -195,11 +221,14 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
                 </TableHeader>
                 <TableBody>
                   {offersLoading ? (
-                    <TableRow><TableCell colSpan={3} className="text-center"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
+                    <TableRow><TableCell colSpan={4} className="text-center"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
+                  ) : offersError ? (
+                     <TableRow><TableCell colSpan={4} className="text-center text-red-500">حدث خطأ أثناء تحميل العروض</TableCell></TableRow>
                   ) : (
                     offers?.map((offer) => (
                       <TableRow key={offer.id}>
                         <TableCell className="font-medium">{offer.gameName}</TableCell>
+                        <TableCell>{offer.offerName}</TableCell>
                         <TableCell>
                           {editingOfferId === offer.id ? (
                             <Input
@@ -236,5 +265,3 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
 };
 
 export default AdminDashboard;
-
-    

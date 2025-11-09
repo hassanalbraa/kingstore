@@ -40,24 +40,28 @@
           "type": "string",
           "description": "Unique identifier for the GameOffer entity."
         },
-        "name": {
+        "gameName": {
           "type": "string",
-          "description": "The name of the game offer."
+          "description": "The name of the game (e.g., PUBG, Free Fire)."
+        },
+        "offerName": {
+          "type": "string",
+          "description": "The name of the specific offer (e.g., 60 شدة, عضوية أسبوعية)."
         },
         "price": {
           "type": "number",
           "description": "The price of the game offer."
         },
-        "description": {
+        "unit": {
           "type": "string",
-          "description": "A description of the game offer."
+          "description": "The unit of the offer (e.g., شدة, 💎, 🪙)."
         }
       },
       "required": [
         "id",
-        "name",
-        "price",
-        "description"
+        "gameName",
+        "offerName",
+        "price"
       ]
     },
     "UserGameOffer": {
