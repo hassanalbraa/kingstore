@@ -12,7 +12,7 @@
         },
         "walletId": {
           "type": "string",
-          "description": "Unique identifier for the user's wallet, same as Firebase Auth UID."
+          "description": "A unique 7-digit numeric string for the user's wallet."
         },
         "username": {
           "type": "string",

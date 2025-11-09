@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import { User as FirebaseAuthUser } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDocs, query, where, collection } from 'firebase/firestore';
 import type { User } from '@/lib/types';
-import { useAuth, useUser, useFirestore, useMemoFirebase, useDoc, updateDocumentNonBlocking } from '@/firebase';
+import { useAuth, useUser, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
 
 import { Card } from '@/components/ui/card';
 import AppHeader from '@/components/layout/header';
@@ -51,15 +51,40 @@ export default function Home() {
     }
   };
   
+  const generateUniqueWalletId = async (): Promise<string> => {
+    let walletId: string;
+    let isUnique = false;
+    const usersRef = collection(firestore, 'users');
+
+    while (!isUnique) {
+      // Generate a 7-digit number as a string
+      walletId = Math.floor(1000000 + Math.random() * 9000000).toString();
+      
+      const q = query(usersRef, where("walletId", "==", walletId));
+      const querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) {
+        isUnique = true;
+      }
+    }
+    return walletId!;
+  };
+
+
   const handleRegister = async (username: string, email: string, password: string): Promise<boolean> => {
     let authUser: FirebaseAuthUser | null = null;
     try {
+      // Step 1: Create user in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       authUser = userCredential.user;
 
+      // Step 2: Generate a unique wallet ID
+      const walletId = await generateUniqueWalletId();
+
+      // Step 3: Create user document in Firestore
       const newUser: User = {
         id: authUser.uid,
-        walletId: authUser.uid, // Set walletId to the user's UID
+        walletId,
         username,
         email,
         balance: 0,
@@ -73,19 +98,28 @@ export default function Home() {
       setView('login');
       return true;
     } catch (error: any) {
-      console.error(error);
+      console.error("Registration Error:", error);
+      
       let description = "يقول انه حدث خطا اثناء انشاء الحساب";
       if (error.code === 'auth/email-already-in-use') {
         description = "هذا البريد الإلكتروني مستخدم بالفعل.";
       } else if (error.code === 'permission-denied') {
-        description = "ليس لديك الصلاحية لإنشاء هذا المستخدم.";
+        description = "حدث خطأ أثناء إنشاء بيانات المستخدم. الرجاء المحاولة مرة أخرى.";
       }
       
       toast({ variant: "destructive", title: "خطأ في إنشاء الحساب", description });
 
-      // If user was created in Auth but failed in Firestore, we should delete the auth user
+      // Rollback: If user was created in Auth but failed in Firestore, delete the auth user
       if (authUser) {
-        await authUser.delete();
+        try {
+          await authUser.delete();
+          console.log("Rolled back Auth user creation.");
+        } catch (deleteError) {
+          console.error("Failed to rollback Auth user creation:", deleteError);
+          // This is a critical state, might need manual cleanup.
+          // For the user, we can just inform them to contact support.
+          toast({ variant: "destructive", title: "خطأ فادح", description: "فشل إنشاء الحساب. الرجاء التواصل مع الدعم الفني." });
+        }
       }
       return false;
     }
@@ -135,6 +169,8 @@ export default function Home() {
        if (view === 'settings') {
          return <SettingsPage onBack={handleBackToDashboard} onChangePassword={handleChangePassword}/>;
        }
+       // Since the logic for determining the user from walletId for the admin is complex,
+       // we pass the user's UID to fund the wallet, which is the document ID in the 'users' collection.
        if (currentUser.role === 'admin') {
          return <AdminDashboard onLogout={handleLogout} />
        }

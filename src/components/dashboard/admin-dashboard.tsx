@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type { User } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
-import { collection, doc, getDoc, runTransaction } from 'firebase/firestore';
+import { collection, doc, getDocs, query, where, runTransaction } from 'firebase/firestore';
 import { CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,19 +48,28 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
     
     setIsFunding(true);
     try {
-      const userRef = doc(firestore, 'users', targetWalletId);
+      const usersRef = collection(firestore, 'users');
+      const q = query(usersRef, where("walletId", "==", targetWalletId));
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        throw new Error("رقم المحفظة غير موجود!");
+      }
+
+      const userDoc = querySnapshot.docs[0];
+      const userRef = userDoc.ref;
       
       await runTransaction(firestore, async (transaction) => {
-        const userDoc = await transaction.get(userRef);
-        if (!userDoc.exists()) {
+        const freshUserDoc = await transaction.get(userRef);
+        if (!freshUserDoc.exists()) {
           throw new Error("المستخدم غير موجود!");
         }
-        const currentBalance = userDoc.data().balance || 0;
+        const currentBalance = freshUserDoc.data().balance || 0;
         const newBalance = currentBalance + amount;
         transaction.update(userRef, { balance: newBalance });
       });
 
-      toast({ title: 'نجاح', description: `تم شحن محفظة المستخدم ${targetWalletId} بمبلغ ${amount.toFixed(2)} ج.س` });
+      toast({ title: 'نجاح', description: `تم شحن محفظة ${targetWalletId} بمبلغ ${amount.toFixed(2)} ج.س` });
       setTargetWalletId('');
       setAmountToAdd('');
     } catch (error: any) {
@@ -129,7 +138,7 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
                         <TableCell className="font-medium">{user.username}</TableCell>
                          <TableCell>
                           <div className="flex items-center gap-2">
-                             <span className="font-mono text-xs">{user.walletId}</span>
+                             <span className="font-mono text-sm">{user.walletId}</span>
                              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleCopyWalletId(user.walletId)}>
                                 <Copy className="h-4 w-4"/>
                              </Button>
@@ -151,8 +160,9 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
                <div className="space-y-2">
                  <Label htmlFor="walletId">رقم المحفظة</Label>
                  <Input 
-                   id="walletId" 
-                   placeholder="أدخل رقم محفظة المستخدم"
+                   id="walletId"
+                   type="number"
+                   placeholder="أدخل رقم محفظة المستخدم المكون من 7 أرقام"
                    value={targetWalletId}
                    onChange={(e) => setTargetWalletId(e.target.value)}
                  />
