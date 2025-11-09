@@ -19,7 +19,7 @@ interface UserDashboardProps {
 const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) => {
   const firestore = useFirestore();
   const { toast } = useToast();
-  const offersQuery = useMemoFirebase(() => collection(firestore, 'game_offers'), [firestore]);
+  const offersQuery = useMemoFirebase(() => collection(firestore, 'gameOffers'), [firestore]);
   const { data: gameOffers, isLoading: offersLoading } = useCollection<any>(offersQuery);
 
   const handleCopyWalletId = (walletId: string) => {
@@ -64,7 +64,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
                 id: offer.id,
                 name: offer.gameName,
                 price: offer.price,
-                imageId: offer.imageUrl.split('/').pop() || '' // Extracting imageId from imageUrl
+                imageId: offer.imageUrl?.split('/').pop() || '' // Extracting imageId from imageUrl
               }} />
             ))}
           </div>
@@ -75,3 +75,5 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
 };
 
 export default UserDashboard;
+
+    

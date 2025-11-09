@@ -24,7 +24,7 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
   const usersQuery = useMemoFirebase(() => collection(firestore, 'users'), [firestore]);
   const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
 
-  const offersQuery = useMemoFirebase(() => collection(firestore, 'game_offers'), [firestore]);
+  const offersQuery = useMemoFirebase(() => collection(firestore, 'gameOffers'), [firestore]);
   const { data: offers, isLoading: offersLoading } = useCollection<any>(offersQuery);
 
   const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
@@ -96,7 +96,7 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
       toast({ variant: 'destructive', title: 'خطأ', description: 'الرجاء إدخال سعر صحيح.' });
       return;
     }
-    const offerDocRef = doc(firestore, 'game_offers', offerId);
+    const offerDocRef = doc(firestore, 'gameOffers', offerId);
     updateDocumentNonBlocking(offerDocRef, { price: newPrice });
     setEditingOfferId(null);
     toast({ title: 'نجاح', description: 'تم تحديث سعر العرض.' });
@@ -236,3 +236,5 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
 };
 
 export default AdminDashboard;
+
+    
