@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, type FormEvent } from 'react';
@@ -6,41 +7,23 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Loader2, LogIn } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
 
 interface LoginFormProps {
-  onLogin: (email: string, password: string) => boolean;
+  onLogin: (email: string, password: string) => Promise<boolean>;
   onSwitchToRegister: () => void;
 }
 
-const LoginForm = ({ onSwitchToRegister }: LoginFormProps) => {
+const LoginForm = ({ onLogin, onSwitchToRegister }: LoginFormProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const auth = useAuth();
-  const { toast } = useToast();
 
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      toast({
-        title: "تم تسجيل الدخول بنجاح",
-        description: `أهلاً بك!`,
-      });
-    } catch (error: any) {
-       toast({
-        variant: "destructive",
-        title: "فشل تسجيل الدخول",
-        description: "البريد الإلكتروني أو كلمة المرور غير صحيحة.",
-      });
-    } finally {
-        setIsLoading(false);
-    }
+    await onLogin(email, password);
+    setIsLoading(false);
   };
 
   return (

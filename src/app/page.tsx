@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { User as FirebaseAuthUser } from 'firebase/auth';
-import { doc, setDoc, getDocs, query, where, collection, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, getDocs, query, where, collection } from 'firebase/firestore';
 import type { User } from '@/lib/types';
 import { useAuth, useUser, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
 
@@ -85,9 +85,7 @@ export default function Home() {
       // Step 3: Determine user role
       const userRole = email === 'admin@king.store' ? 'admin' : 'user';
 
-      // Step 4: Create user document in Firestore using a batch
-      const batch = writeBatch(firestore);
-
+      // Step 4: Create user document in Firestore
       const newUser: User = {
         id: authUser.uid,
         walletId,
@@ -98,15 +96,13 @@ export default function Home() {
       };
       
       const userDoc = doc(firestore, "users", authUser.uid);
-      batch.set(userDoc, newUser);
+      await setDoc(userDoc, newUser);
 
+      // Step 5: Create admin role if applicable
       if (userRole === 'admin') {
         const adminRoleDoc = doc(firestore, "roles_admin", authUser.uid);
-        batch.set(adminRoleDoc, { isAdmin: true });
+        await setDoc(adminRoleDoc, { isAdmin: true });
       }
-
-      // Step 5: Commit the batch
-      await batch.commit();
       
       // Since we didn't sign in, we can sign out any lingering session if needed (though createUser doesn't sign in)
       if (auth.currentUser) {
