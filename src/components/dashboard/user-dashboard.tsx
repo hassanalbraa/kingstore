@@ -64,8 +64,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
   const myOrdersQuery = useMemoFirebase(() => 
     firestore && user 
     ? query(
-        collection(firestore, 'userGameOffers'), 
-        where('userId', '==', user.id),
+        collection(firestore, 'users', user.id, 'userGameOffers'), 
         orderBy('createdAt', 'desc')
       ) 
     : null
@@ -129,8 +128,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
 
     try {
         const userRef = doc(firestore, 'users', user.id);
-        // All user game offers are now in a root collection
-        const userGameOfferRef = doc(collection(firestore, `userGameOffers`));
+        const userGameOfferRef = doc(collection(firestore, `users/${user.id}/userGameOffers`));
 
         await runTransaction(firestore, async (transaction) => {
             const userDoc = await transaction.get(userRef);
@@ -397,3 +395,5 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
 };
 
 export default UserDashboard;
+
+    

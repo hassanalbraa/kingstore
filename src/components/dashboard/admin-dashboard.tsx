@@ -5,7 +5,7 @@
 import { useState, useMemo } from 'react';
 import type { User, Offer, UserGameOffer } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, useUser } from '@/firebase';
-import { collection, doc, getDocs, query, where, runTransaction, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, query, where, runTransaction, updateDoc, collectionGroup } from 'firebase/firestore';
 import { CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,11 +45,13 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
   const offersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'gameOffers') : null, [firestore]);
   const { data: offers, isLoading: offersLoading, error: offersError } = useCollection<Offer>(offersQuery);
 
-  const pendingOrdersQuery = useMemoFirebase(() => 
-    firestore && adminUser?.role === 'admin' 
-    ? query(collection(firestore, 'userGameOffers'), where('status', '==', 'pending')) 
-    : null
-  , [firestore, adminUser]);
+  // Temporarily disable pending orders query to fix permission issues
+  const pendingOrdersQuery = null;
+  // const pendingOrdersQuery = useMemoFirebase(() => 
+  //   firestore && adminUser?.role === 'admin' 
+  //   ? query(collectionGroup(firestore, 'userGameOffers'), where('status', '==', 'pending')) 
+  //   : null
+  // , [firestore, adminUser]);
   const { data: pendingOrders, isLoading: ordersLoading } = useCollection<UserGameOffer>(pendingOrdersQuery);
   
   const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
@@ -231,7 +233,8 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
     if (!firestore) return;
     setUpdatingOrderId(order.id);
     try {
-        const orderRef = doc(firestore, `userGameOffers/${order.id}`);
+        // The path now needs the userId
+        const orderRef = doc(firestore, `users/${order.userId}/userGameOffers/${order.id}`);
         await updateDoc(orderRef, { status: 'completed' });
         toast({ title: "تم!", description: "تم تحديث حالة الطلب إلى مكتمل." });
     } catch (error) {
@@ -270,7 +273,7 @@ const renderOrdersContent = () => {
             <div className="rounded-lg border mt-4 p-4 text-center">
              <h3 className="text-lg font-semibold">لا توجد طلبات جديدة</h3>
              <p className="text-muted-foreground mt-2">
-               لا يوجد أي طلبات قيد التنفيذ في الوقت الحالي.
+               ميزة عرض الطلبات قيد الصيانة حاليًا.
              </p>
            </div>
          )
@@ -548,3 +551,5 @@ const renderOrdersContent = () => {
 };
 
 export default AdminDashboard;
+
+    
