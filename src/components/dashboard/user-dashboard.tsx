@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import OfferCard from './offer-card';
 import GameCard from './game-card';
-import { Copy, ArrowRight, Loader2, CreditCard } from 'lucide-react';
+import { Copy, ArrowRight, Loader2, CreditCard, Home, User as UserIcon, Wallet, MessageSquare, LogOut } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -373,7 +373,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
                   <TableCell className="font-medium">{tx.description}</TableCell>
                   <TableCell className={cn(
                       "font-bold",
-                      tx.amount < 0 ? 'text-red-500' : 'text-green-500'
+                      tx.amount > 0 ? 'text-green-500' : 'text-red-500'
                   )}>
                     {tx.amount > 0 ? '+' : ''}
                     {tx.amount} ج.س
@@ -454,14 +454,6 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
     { id: 'transactions', label: 'المعاملات', icon: 'Wallet' },
     { id: 'logout', label: 'خروج', icon: 'LogOut', onClick: onLogout },
   ];
-
-  const handleNav = (selectedView: UserView) => {
-    if (selectedView === 'account') {
-        onGoToSettings();
-    } else {
-        setView(selectedView);
-    }
-  }
   
   const renderCurrentView = () => {
     switch (view) {
@@ -582,3 +574,4 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
 export default UserDashboard;
 
     
+
