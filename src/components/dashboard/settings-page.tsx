@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, KeyRound } from 'lucide-react';
 
 interface SettingsPageProps {
   onBack: () => void;
@@ -66,7 +66,10 @@ const SettingsPage = ({ onBack }: SettingsPageProps) => {
         </div>
       </CardContent>
       <CardFooter className="flex-col sm:flex-row gap-2">
-        <Button onClick={handleChangePassword} className="w-full">تغيير كلمة المرور</Button>
+        <Button onClick={handleChangePassword} className="w-full">
+          <KeyRound className="ms-2 h-4 w-4" />
+          تغيير كلمة المرور
+        </Button>
       </CardFooter>
     </>
   );

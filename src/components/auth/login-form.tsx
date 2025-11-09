@@ -5,7 +5,7 @@ import { CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from 
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Loader2 } from 'lucide-react';
+import { Loader2, LogIn } from 'lucide-react';
 
 interface LoginFormProps {
   onLogin: (username: string, password: string) => boolean;
@@ -57,7 +57,11 @@ const LoginForm = ({ onLogin }: LoginFormProps) => {
         </CardContent>
         <CardFooter>
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading && <Loader2 className="ms-2 h-4 w-4 animate-spin" />}
+            {isLoading ? (
+              <Loader2 className="ms-2 h-4 w-4 animate-spin" />
+            ) : (
+              <LogIn className="ms-2 h-4 w-4" />
+            )}
             دخول
           </Button>
         </CardFooter>
