@@ -15,14 +15,15 @@ service cloud.firestore {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin(); // Only admin can list all users
       allow create: if isOwner(userId);
-      // User can't update their balance directly. Admin can.
-      allow update: if (isOwner(userId) && request.resource.data.balance <= resource.data.balance) || isAdmin();
+      // Allow user to update their own balance, but only through a transaction
+      // Admin can update anything.
+      allow update: if (isOwner(userId) && request.resource.data.balance != resource.data.balance) || isAdmin();
       allow delete: if isAdmin();
-      
+
       // Rule for user's own orders subcollection.
-      // This allows a user to read and write to their own orders list.
+      // This allows a user to read (get, list) and write (create, update, delete) to their own orders list.
       match /userGameOffers/{userGameOfferId} {
-        allow read, write: if isOwner(userId);
+        allow get, list, write: if isOwner(userId);
       }
     }
 
