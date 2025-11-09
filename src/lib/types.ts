@@ -4,6 +4,7 @@ export interface User {
   email?: string;
   balance: number;
   role: 'user' | 'admin';
+  walletId: string;
 }
 
 export interface Offer {

@@ -8,7 +8,11 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the User entity."
+          "description": "Unique identifier for the User entity, same as Firebase Auth UID."
+        },
+        "walletId": {
+          "type": "string",
+          "description": "Unique identifier for the user's wallet, same as Firebase Auth UID."
         },
         "username": {
           "type": "string",
@@ -26,14 +30,19 @@
         "isAdmin": {
           "type": "boolean",
           "description": "Indicates whether the user is an administrator."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["user", "admin"]
         }
       },
       "required": [
         "id",
+        "walletId",
         "username",
         "email",
         "balance",
-        "isAdmin"
+        "role"
       ]
     },
     "GameOffer": {

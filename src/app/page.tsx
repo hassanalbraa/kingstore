@@ -5,7 +5,6 @@ import { User as FirebaseAuthUser } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import type { User } from '@/lib/types';
 import { useAuth, useUser, useFirestore, useMemoFirebase, useDoc, updateDocumentNonBlocking } from '@/firebase';
-import { initiateEmailSignIn } from '@/firebase/non-blocking-login';
 
 import { Card } from '@/components/ui/card';
 import AppHeader from '@/components/layout/header';
@@ -16,7 +15,7 @@ import AdminDashboard from '@/components/dashboard/admin-dashboard';
 import SettingsPage from '@/components/dashboard/settings-page';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import { createUserWithEmailAndPassword, updatePassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updatePassword, signInWithEmailAndPassword } from 'firebase/auth';
 
 type View = 'login' | 'register' | 'user_dashboard' | 'admin_dashboard' | 'settings';
 
@@ -34,10 +33,22 @@ export default function Home() {
 
   const { data: currentUser, isLoading: isUserDocLoading } = useDoc<User>(userDocRef);
 
-  const handleLogin = (email: string, password: string): boolean => {
-    initiateEmailSignIn(auth, email, password);
-    // We don't return true/false anymore as auth is async
-    return true; 
+  const handleLogin = async (email: string, password: string): Promise<boolean> => {
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      toast({
+        title: "تم تسجيل الدخول بنجاح",
+        description: `أهلاً بك!`,
+      });
+      return true;
+    } catch (error: any) {
+       toast({
+        variant: "destructive",
+        title: "فشل تسجيل الدخول",
+        description: "البريد الإلكتروني أو كلمة المرور غير صحيحة.",
+      });
+      return false;
+    }
   };
   
   const handleRegister = async (username: string, email: string, password: string): Promise<boolean> => {
@@ -48,6 +59,7 @@ export default function Home() {
 
       const newUser: User = {
         id: authUser.uid,
+        walletId: authUser.uid, // Set walletId to the user's UID
         username,
         email,
         balance: 0,
@@ -62,14 +74,16 @@ export default function Home() {
       return true;
     } catch (error: any) {
       console.error(error);
+      let description = "يقول انه حدث خطا اثناء انشاء الحساب";
       if (error.code === 'auth/email-already-in-use') {
-        toast({ variant: "destructive", title: "خطأ", description: "هذا البريد الإلكتروني مستخدم بالفعل." });
+        description = "هذا البريد الإلكتروني مستخدم بالفعل.";
       } else if (error.code === 'permission-denied') {
-        toast({ variant: "destructive", title: "خطأ في الأذونات", description: "ليس لديك الصلاحية لإنشاء هذا المستخدم." });
-      } else {
-        toast({ variant: "destructive", title: "خطأ", description: "حدث خطأ أثناء إنشاء الحساب." });
+        description = "ليس لديك الصلاحية لإنشاء هذا المستخدم.";
       }
-      // If user was created in Auth but failed in Firestore, we should probably delete the auth user
+      
+      toast({ variant: "destructive", title: "خطأ في إنشاء الحساب", description });
+
+      // If user was created in Auth but failed in Firestore, we should delete the auth user
       if (authUser) {
         await authUser.delete();
       }

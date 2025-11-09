@@ -3,15 +3,15 @@
 import { useState } from 'react';
 import type { User } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
+import { collection, doc, getDoc, runTransaction } from 'firebase/firestore';
 import { CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { LogOut, Edit, Save, XCircle, Loader2 } from 'lucide-react';
+import { LogOut, Edit, Save, XCircle, Loader2, PlusCircle, Copy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import OfferCard from './offer-card';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -27,27 +27,54 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
   const offersQuery = useMemoFirebase(() => collection(firestore, 'game_offers'), [firestore]);
   const { data: offers, isLoading: offersLoading } = useCollection<any>(offersQuery);
 
-  const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
-  const [tempBalance, setTempBalance] = useState('');
   const [tempPrice, setTempPrice] = useState('');
 
-  const handleEditUser = (user: User) => {
-    setEditingUserId(user.id);
-    setTempBalance(user.balance.toString());
-  };
-  
-  const handleSaveUser = (userId: string) => {
-    const newBalance = parseFloat(tempBalance);
-    if (isNaN(newBalance) || newBalance < 0) {
-      toast({ variant: 'destructive', title: 'خطأ', description: 'الرجاء إدخال رصيد صحيح.' });
+  const [targetWalletId, setTargetWalletId] = useState('');
+  const [amountToAdd, setAmountToAdd] = useState('');
+  const [isFunding, setIsFunding] = useState(false);
+
+  const handleFundWallet = async () => {
+    if (!targetWalletId || !amountToAdd) {
+      toast({ variant: 'destructive', title: 'خطأ', description: 'الرجاء إدخال رقم المحفظة والمبلغ.' });
       return;
     }
-    const userDocRef = doc(firestore, 'users', userId);
-    updateDocumentNonBlocking(userDocRef, { balance: newBalance });
-    setEditingUserId(null);
-    toast({ title: 'نجاح', description: 'تم تحديث رصيد المستخدم.' });
+    
+    const amount = parseFloat(amountToAdd);
+    if (isNaN(amount) || amount <= 0) {
+      toast({ variant: 'destructive', title: 'خطأ', description: 'الرجاء إدخال مبلغ صحيح.' });
+      return;
+    }
+    
+    setIsFunding(true);
+    try {
+      const userRef = doc(firestore, 'users', targetWalletId);
+      
+      await runTransaction(firestore, async (transaction) => {
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists()) {
+          throw new Error("المستخدم غير موجود!");
+        }
+        const currentBalance = userDoc.data().balance || 0;
+        const newBalance = currentBalance + amount;
+        transaction.update(userRef, { balance: newBalance });
+      });
+
+      toast({ title: 'نجاح', description: `تم شحن محفظة المستخدم ${targetWalletId} بمبلغ ${amount.toFixed(2)} ج.س` });
+      setTargetWalletId('');
+      setAmountToAdd('');
+    } catch (error: any) {
+      console.error(error);
+      toast({ variant: 'destructive', title: 'فشل الشحن', description: error.message || 'حدث خطأ أثناء شحن المحفظة.' });
+    } finally {
+      setIsFunding(false);
+    }
   };
+  
+  const handleCopyWalletId = (walletId: string) => {
+    navigator.clipboard.writeText(walletId);
+    toast({title: "تم النسخ!", description: "تم نسخ رقم المحفظة."})
+  }
 
   const handleEditOffer = (offer: any) => {
     setEditingOfferId(offer.id);
@@ -78,8 +105,9 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="users" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="users">إدارة المستخدمين</TabsTrigger>
+            <TabsTrigger value="fund">شحن المحافظ</TabsTrigger>
             <TabsTrigger value="offers">إدارة العروض</TabsTrigger>
           </TabsList>
           <TabsContent value="users">
@@ -88,8 +116,8 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>اسم المستخدم</TableHead>
+                    <TableHead>رقم المحفظة</TableHead>
                     <TableHead>الرصيد</TableHead>
-                    <TableHead className="text-left">تعديل</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -99,33 +127,50 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
                     users?.filter(u => u.role !== 'admin').map((user) => (
                       <TableRow key={user.id}>
                         <TableCell className="font-medium">{user.username}</TableCell>
-                        <TableCell>
-                          {editingUserId === user.id ? (
-                            <Input
-                              type="number"
-                              value={tempBalance}
-                              onChange={(e) => setTempBalance(e.target.value)}
-                              className="h-8 max-w-[100px]"
-                            />
-                          ) : (
-                            `${user.balance.toFixed(2)} ج.س`
-                          )}
+                         <TableCell>
+                          <div className="flex items-center gap-2">
+                             <span className="font-mono text-xs">{user.walletId}</span>
+                             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleCopyWalletId(user.walletId)}>
+                                <Copy className="h-4 w-4"/>
+                             </Button>
+                          </div>
                         </TableCell>
-                        <TableCell className="text-left">
-                          {editingUserId === user.id ? (
-                            <div className="flex gap-1">
-                              <Button size="icon" className="h-8 w-8" onClick={() => handleSaveUser(user.id)}><Save className="h-4 w-4" /></Button>
-                              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setEditingUserId(null)}><XCircle className="h-4 w-4" /></Button>
-                            </div>
-                          ) : (
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleEditUser(user)}><Edit className="h-4 w-4" /></Button>
-                          )}
+                        <TableCell>
+                          {`${user.balance.toFixed(2)} ج.س`}
                         </TableCell>
                       </TableRow>
                     ))
                   )}
                 </TableBody>
               </Table>
+            </div>
+          </TabsContent>
+          <TabsContent value="fund">
+            <div className="mt-4 p-4 border rounded-lg space-y-4">
+               <h3 className="text-lg font-semibold">شحن رصيد محفظة</h3>
+               <div className="space-y-2">
+                 <Label htmlFor="walletId">رقم المحفظة</Label>
+                 <Input 
+                   id="walletId" 
+                   placeholder="أدخل رقم محفظة المستخدم"
+                   value={targetWalletId}
+                   onChange={(e) => setTargetWalletId(e.target.value)}
+                 />
+               </div>
+               <div className="space-y-2">
+                 <Label htmlFor="amount">المبلغ</Label>
+                 <Input 
+                  id="amount"
+                  type="number"
+                  placeholder="أدخل المبلغ المراد شحنه"
+                  value={amountToAdd}
+                  onChange={(e) => setAmountToAdd(e.target.value)}
+                  />
+               </div>
+               <Button onClick={handleFundWallet} disabled={isFunding} className="w-full">
+                 {isFunding ? <Loader2 className="animate-spin"/> : <PlusCircle />}
+                 شحن الرصيد
+               </Button>
             </div>
           </TabsContent>
           <TabsContent value="offers">
