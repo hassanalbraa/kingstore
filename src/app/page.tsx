@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { User as FirebaseAuthUser } from 'firebase/auth';
-import { doc, getDoc, setDoc, runTransaction, collection } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import type { User } from '@/lib/types';
 import { useAuth, useUser, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
 
@@ -34,57 +34,52 @@ export default function Home() {
 
   const { data: currentUser, isLoading: isUserDocLoading } = useDoc<User>(userDocRef);
 
-  // Effect to create user document if it doesn't exist after login
-  useEffect(() => {
-    const createUserDocument = async (authUser: FirebaseAuthUser) => {
-      if (!firestore) return;
-      const userRef = doc(firestore, 'users', authUser.uid);
-      
-      try {
-        await runTransaction(firestore, async (transaction) => {
-          const docSnapshot = await transaction.get(userRef);
+  // Simplified user document creation logic
+  const createUserDocument = async (authUser: FirebaseAuthUser) => {
+    if (!firestore) return;
+    const userRef = doc(firestore, 'users', authUser.uid);
+    const docSnap = await getDoc(userRef);
 
-          if (docSnapshot.exists()) {
-            return; // Document already exists, do nothing.
-          }
+    if (docSnap.exists()) {
+      return; // Document already exists
+    }
 
-          // If document doesn't exist, create it.
-          const walletId = Math.floor(1000000 + Math.random() * 9000000).toString();
-          const userRole = authUser.email?.toLowerCase() === 'admin@king.store' ? 'admin' : 'user';
+    try {
+      const walletId = Math.floor(1000000 + Math.random() * 9000000).toString();
+      const userRole = authUser.email?.toLowerCase() === 'admin@king.store' ? 'admin' : 'user';
 
-          const newUser: Omit<User, 'id'> = {
-              walletId,
-              username: authUser.displayName || authUser.email?.split('@')[0] || 'New User', 
-              email: authUser.email || '',
-              balance: 0,
-              role: userRole,
-          };
-          
-          transaction.set(userRef, newUser);
+      const newUser: Omit<User, 'id'> = {
+        walletId,
+        username: authUser.displayName || authUser.email?.split('@')[0] || 'New User',
+        email: authUser.email || '',
+        balance: 0,
+        role: userRole,
+      };
 
-          // Handle admin role creation
-          if (userRole === 'admin') {
-              const adminRoleDocRef = doc(firestore, "roles_admin", authUser.uid);
-              transaction.set(adminRoleDocRef, { created: new Date() });
-          }
-        });
+      await setDoc(userRef, newUser);
 
-        toast({ title: "مرحباً بك!", description: "تم إعداد ملفك الشخصي بنجاح." });
-
-      } catch (error: any) {
-        console.error("Error creating user document in transaction:", error);
-        toast({
-          variant: "destructive",
-          title: "خطأ في إعداد الملف الشخصي",
-          description: "لم نتمكن من إنشاء بيانات حسابك. الرجاء المحاولة مرة أخرى."
-        });
+      if (userRole === 'admin') {
+        const adminRoleDocRef = doc(firestore, "roles_admin", authUser.uid);
+        await setDoc(adminRoleDocRef, { email: authUser.email, createdAt: new Date() });
       }
-    };
+      
+      toast({ title: "مرحباً بك!", description: "تم إعداد ملفك الشخصي بنجاح." });
 
+    } catch (error: any) {
+      console.error("Error creating user document:", error);
+      toast({
+        variant: "destructive",
+        title: "خطأ في إعداد الملف الشخصي",
+        description: "لم نتمكن من إنشاء بيانات حسابك. الرجاء المحاولة مرة أخرى."
+      });
+    }
+  };
+
+  useEffect(() => {
     if (firebaseUser && !isUserDocLoading && !currentUser) {
       createUserDocument(firebaseUser);
     }
-  }, [firebaseUser, currentUser, isUserDocLoading, firestore, toast]);
+  }, [firebaseUser, currentUser, isUserDocLoading]);
 
 
   const handleLogin = async (email: string, password: string): Promise<boolean> => {
@@ -98,11 +93,11 @@ export default function Home() {
     }
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      // The useEffect hook will handle user document creation on successful login
       toast({
         title: "تم تسجيل الدخول بنجاح",
         description: `أهلاً بك!`,
       });
-      // View will change automatically via the user state listener
       return true;
     } catch (error: any) {
        toast({
@@ -125,12 +120,11 @@ export default function Home() {
     }
     
     try {
+        // The onAuthStateChanged listener will automatically pick up the new user,
+        // and the useEffect will trigger to create their document.
         await createUserWithEmailAndPassword(auth, email, password);
-        // The user document will be created by the useEffect hook upon the *next* sign-in.
-        // For now, we sign them out and ask them to log in.
-        auth.signOut();
-        toast({ title: 'نجاح', description: 'تم إنشاء حسابك! الرجاء تسجيل الدخول للمتابعة.' });
-        setView('login'); // Switch to login view after successful registration
+        toast({ title: 'نجاح', description: 'تم إنشاء حسابك وتسجيل دخولك تلقائيًا!' });
+        // The view will change automatically via the user state listener
         return true;
 
     } catch (error: any) {
@@ -164,7 +158,7 @@ export default function Home() {
   };
 
   const handleLogout = () => {
-    auth.signOut();
+    if(auth) auth.signOut();
     setView('login');
   };
 
@@ -186,12 +180,10 @@ export default function Home() {
   };
   
   const renderView = () => {
-    // Show loader while checking auth state OR while loading the user document
     if (isUserLoading || (firebaseUser && isUserDocLoading)) {
       return <div className="flex justify-center items-center p-10"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
     }
     
-    // Once we have a firebaseUser and we have confirmed the user document is loaded (or not)
     if (firebaseUser && currentUser) {
        if (view === 'settings') {
          return <SettingsPage onBack={handleBackToDashboard} onChangePassword={handleChangePassword}/>;
@@ -202,7 +194,7 @@ export default function Home() {
        return <UserDashboard user={currentUser} onLogout={handleLogout} onGoToSettings={handleGoToSettings} />;
     }
 
-    // If no user, show login or register. Also handles the case where user doc is still being created.
+    // If no user, show login or register.
     switch (view) {
       case 'register':
         return <RegisterForm onRegister={handleRegister} onSwitchToLogin={() => handleSwitchView('login')} />;
