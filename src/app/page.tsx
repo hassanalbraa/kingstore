@@ -74,67 +74,84 @@ export default function Home() {
 
 
   const handleRegister = async (username: string, email: string, password: string): Promise<boolean> => {
+    // 1. Check if firestore and auth are available to prevent runtime errors
+    if (!firestore || !auth) {
+        toast({
+            variant: "destructive",
+            title: "خطأ",
+            description: "خدمات Firebase غير متاحة حاليًا. الرجاء المحاولة مرة أخرى لاحقًا."
+        });
+        return false;
+    }
+    
     try {
-      // 1. Create the user in Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const authUser = userCredential.user;
+        // 2. Create the user in Firebase Auth
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const authUser = userCredential.user;
 
-      // 2. Explicitly sign in to ensure auth state is active for security rules
-      await signInWithEmailAndPassword(auth, email, password);
+        // 3. Explicitly sign in to ensure the auth state is active for security rules.
+        // This is the crucial step to make `request.auth` available in rules.
+        await signInWithEmailAndPassword(auth, email, password);
+        
+        // 4. Prepare the user data and the batch write operation
+        const walletId = await generateUniqueWalletId();
+        const userRole = email.toLowerCase() === 'admin@king.store' ? 'admin' : 'user';
+
+        const newUser: User = {
+            id: authUser.uid,
+            walletId,
+            username,
+            email,
+            balance: 0,
+            role: userRole,
+        };
       
-      // 3. Prepare data and batch write to Firestore
-      const walletId = await generateUniqueWalletId();
-      const userRole = email === 'admin@king.store' ? 'admin' : 'user';
-
-      const newUser: User = {
-        id: authUser.uid,
-        walletId,
-        username,
-        email,
-        balance: 0,
-        role: userRole,
-      };
+        // Create a batch
+        const batch = writeBatch(firestore);
       
-      const batch = writeBatch(firestore);
-      
-      const userDoc = doc(firestore, "users", authUser.uid);
-      batch.set(userDoc, newUser);
+        // Set the user document
+        const userDocRef = doc(firestore, "users", authUser.uid);
+        batch.set(userDocRef, newUser);
 
-      if (userRole === 'admin') {
-        const adminRoleDoc = doc(firestore, "roles_admin", authUser.uid);
-        batch.set(adminRoleDoc, { isAdmin: true });
-      }
+        // If the user is an admin, also set their role document
+        if (userRole === 'admin') {
+            const adminRoleDocRef = doc(firestore, "roles_admin", authUser.uid);
+            // The data here can be simple, its existence is what matters for the rules
+            batch.set(adminRoleDocRef, { isAdmin: true });
+        }
 
-      // 4. Commit the batch
-      await batch.commit();
+        // 5. Commit the batch atomically
+        await batch.commit();
 
-      toast({ title: 'نجاح', description: 'تم إنشاء حسابك وتسجيل دخولك بنجاح!' });
-      // View will change automatically due to user state change
-      return true;
+        toast({ title: 'نجاح', description: 'تم إنشاء حسابك وتسجيل دخولك بنجاح!' });
+        // The view will change automatically based on the user state changing from the sign-in.
+        return true;
 
     } catch (error: any) {
-      console.error("Registration Error:", error);
-      
-      // Attempt to clean up the created auth user if registration fails at a later step
-      if (auth.currentUser && auth.currentUser.email === email) {
-        try {
-          await auth.currentUser.delete();
-          console.log("Rolled back Auth user creation.");
-        } catch (deleteError) {
-          console.error("Failed to rollback Auth user creation:", deleteError);
+        console.error("Registration Error:", error);
+
+        // Best-effort cleanup of the created auth user if Firestore operations fail
+        if (auth.currentUser && auth.currentUser.email === email) {
+            try {
+                await auth.currentUser.delete();
+                console.log("Rolled back Auth user creation due to Firestore error.");
+            } catch (deleteError) {
+                console.error("Critical: Failed to rollback Auth user creation:", deleteError);
+            }
         }
-      }
+        
+        let description = "حدث خطأ غير متوقع أثناء إنشاء الحساب.";
+        if (error.code === 'auth/email-already-in-use') {
+            description = "هذا البريد الإلكتروني مستخدم بالفعل. الرجاء استخدام بريد آخر.";
+        } else if (error.code === 'auth/weak-password') {
+            description = "كلمة المرور ضعيفة جدًا. يجب أن تتكون من 6 أحرف على الأقل.";
+        } else if (error.code === 'permission-denied') {
+            description = "ليس لديك الصلاحية لإنشاء هذا الحساب. هناك مشكلة في قواعد الأمان."
+        }
+        
+        toast({ variant: "destructive", title: "خطأ في إنشاء الحساب", description });
 
-      let description = "حدث خطأ أثناء إنشاء الحساب.";
-      if (error.code === 'auth/email-already-in-use') {
-        description = "هذا البريد الإلكتروني مستخدم بالفعل.";
-      } else if (error.code === 'permission-denied') {
-        description = "ليس لديك الصلاحية لإنشاء هذا الحساب. هناك مشكلة في قواعد الأمان."
-      }
-      
-      toast({ variant: "destructive", title: "خطأ في إنشاء الحساب", description });
-
-      return false;
+        return false;
     }
   };
 
