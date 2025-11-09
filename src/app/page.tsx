@@ -7,20 +7,22 @@ import { users as mockUsers } from '@/lib/data';
 import { Card } from '@/components/ui/card';
 import AppHeader from '@/components/layout/header';
 import LoginForm from '@/components/auth/login-form';
+import RegisterForm from '@/components/auth/register-form';
 import UserDashboard from '@/components/dashboard/user-dashboard';
 import AdminDashboard from '@/components/dashboard/admin-dashboard';
 import SettingsPage from '@/components/dashboard/settings-page';
 import { useToast } from '@/hooks/use-toast';
 
-type View = 'login' | 'user_dashboard' | 'admin_dashboard' | 'settings';
+type View = 'login' | 'register' | 'user_dashboard' | 'admin_dashboard' | 'settings';
 
 export default function Home() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [view, setView] = useState<View>('login');
+  const [users, setUsers] = useState<User[]>(mockUsers);
   const { toast } = useToast();
 
   const handleLogin = (username: string, password: string): boolean => {
-    const user = mockUsers.find(
+    const user = users.find(
       (u) => u.username === username && u.password === password
     );
 
@@ -41,6 +43,32 @@ export default function Home() {
       return false;
     }
   };
+  
+  const handleRegister = (username: string, email: string, password: string): boolean => {
+    if (users.some(u => u.username === username)) {
+      toast({ variant: "destructive", title: "خطأ", description: "اسم المستخدم موجود بالفعل." });
+      return false;
+    }
+    if (users.some(u => u.email === email)) {
+      toast({ variant: "destructive", title: "خطأ", description: "البريد الإلكتروني موجود بالفعل." });
+      return false;
+    }
+
+    const newUser: User = {
+      id: `user-${Date.now()}`,
+      username,
+      email,
+      password,
+      balance: 0,
+      role: 'user',
+    };
+    
+    setUsers([...users, newUser]);
+    toast({ title: 'نجاح', description: 'تم إنشاء حسابك بنجاح! يمكنك الآن تسجيل الدخول.' });
+    setView('login');
+    return true;
+  };
+
 
   const handleLogout = () => {
     setCurrentUser(null);
@@ -50,6 +78,10 @@ export default function Home() {
   const handleGoToSettings = () => {
     setView('settings');
   };
+  
+  const handleSwitchView = (newView: View) => {
+    setView(newView);
+  }
 
   const handleBackToDashboard = () => {
     if (currentUser) {
@@ -65,9 +97,11 @@ export default function Home() {
         return <AdminDashboard onLogout={handleLogout} />;
       case 'settings':
         return <SettingsPage onBack={handleBackToDashboard} />;
+      case 'register':
+        return <RegisterForm onRegister={handleRegister} onSwitchToLogin={() => handleSwitchView('login')} />;
       case 'login':
       default:
-        return <LoginForm onLogin={handleLogin} />;
+        return <LoginForm onLogin={handleLogin} onSwitchToRegister={() => handleSwitchView('register')} />;
     }
   };
 

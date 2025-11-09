@@ -1,10 +1,10 @@
 import type { User, Offer } from './types';
 
 export const users: User[] = [
-  { id: '1', username: 'أحمد', password: '123', balance: 150.75, role: 'user' },
-  { id: '2', username: 'فاطمة', password: '123', balance: 320.50, role: 'user' },
-  { id: '3', username: 'أدمن', password: 'admin', balance: 9999, role: 'admin' },
-  { id: '4', username: 'خالد', password: '123', balance: 50.00, role: 'user' },
+  { id: '1', username: 'أحمد', email: 'ahmad@test.com', password: '123', balance: 150.75, role: 'user' },
+  { id: '2', username: 'فاطمة', email: 'fatima@test.com', password: '123', balance: 320.50, role: 'user' },
+  { id: '3', username: 'أدمن', email: 'admin@test.com', password: 'admin', balance: 9999, role: 'admin' },
+  { id: '4', username: 'خالد', email: 'khaled@test.com', password: '123', balance: 50.00, role: 'user' },
 ];
 
 export const gameOffers: Offer[] = [

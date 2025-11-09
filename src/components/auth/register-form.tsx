@@ -5,15 +5,16 @@ import { CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from 
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Loader2, LogIn } from 'lucide-react';
+import { Loader2, UserPlus } from 'lucide-react';
 
-interface LoginFormProps {
-  onLogin: (username: string, password: string) => boolean;
-  onSwitchToRegister: () => void;
+interface RegisterFormProps {
+  onRegister: (username: string, email: string, password: string) => boolean;
+  onSwitchToLogin: () => void;
 }
 
-const LoginForm = ({ onLogin, onSwitchToRegister }: LoginFormProps) => {
+const RegisterForm = ({ onRegister, onSwitchToLogin }: RegisterFormProps) => {
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -21,16 +22,16 @@ const LoginForm = ({ onLogin, onSwitchToRegister }: LoginFormProps) => {
     e.preventDefault();
     setIsLoading(true);
     setTimeout(() => {
-        onLogin(username, password);
-        setIsLoading(false);
+      onRegister(username, email, password);
+      setIsLoading(false);
     }, 1000);
   };
 
   return (
     <>
       <CardHeader className="text-center">
-        <CardTitle className="text-3xl font-bold">مرحباً بك في KING STORE</CardTitle>
-        <CardDescription>الرجاء تسجيل الدخول للمتابعة</CardDescription>
+        <CardTitle className="text-3xl font-bold">إنشاء حساب جديد</CardTitle>
+        <CardDescription>املأ البيانات التالية للانضمام إلينا</CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
@@ -39,9 +40,20 @@ const LoginForm = ({ onLogin, onSwitchToRegister }: LoginFormProps) => {
             <Input
               id="username"
               required
-              placeholder="أدخل اسم المستخدم"
+              placeholder="اختر اسم مستخدم فريد"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="email">البريد الإلكتروني</Label>
+            <Input
+              id="email"
+              type="email"
+              required
+              placeholder="أدخل بريدك الإلكتروني"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
             />
           </div>
           <div className="space-y-2">
@@ -50,7 +62,7 @@ const LoginForm = ({ onLogin, onSwitchToRegister }: LoginFormProps) => {
               id="password"
               type="password"
               required
-              placeholder="أدخل كلمة المرور"
+              placeholder="اختر كلمة مرور قوية"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -58,15 +70,11 @@ const LoginForm = ({ onLogin, onSwitchToRegister }: LoginFormProps) => {
         </CardContent>
         <CardFooter className="flex-col gap-4">
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? (
-              <Loader2 className="animate-spin" />
-            ) : (
-              <LogIn />
-            )}
-            دخول
+            {isLoading ? <Loader2 className="animate-spin" /> : <UserPlus />}
+            إنشاء الحساب
           </Button>
-          <Button variant="link" type="button" onClick={onSwitchToRegister}>
-            ليس لديك حساب؟ إنشاء حساب جديد
+          <Button variant="link" type="button" onClick={onSwitchToLogin}>
+            لديك حساب بالفعل؟ تسجيل الدخول
           </Button>
         </CardFooter>
       </form>
@@ -74,4 +82,4 @@ const LoginForm = ({ onLogin, onSwitchToRegister }: LoginFormProps) => {
   );
 };
 
-export default LoginForm;
+export default RegisterForm;
