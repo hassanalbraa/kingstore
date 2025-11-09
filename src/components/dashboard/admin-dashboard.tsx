@@ -45,13 +45,11 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
   const offersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'gameOffers') : null, [firestore]);
   const { data: offers, isLoading: offersLoading, error: offersError } = useCollection<Offer>(offersQuery);
 
-  // Temporarily disable pending orders query to fix permission issues
-  const pendingOrdersQuery = null;
-  // const pendingOrdersQuery = useMemoFirebase(() => 
-  //   firestore && adminUser?.role === 'admin' 
-  //   ? query(collectionGroup(firestore, 'userGameOffers'), where('status', '==', 'pending')) 
-  //   : null
-  // , [firestore, adminUser]);
+  const pendingOrdersQuery = useMemoFirebase(() => 
+    firestore && adminUser?.role === 'admin' 
+    ? query(collectionGroup(firestore, 'userGameOffers'), where('status', '==', 'pending')) 
+    : null
+  , [firestore, adminUser]);
   const { data: pendingOrders, isLoading: ordersLoading } = useCollection<UserGameOffer>(pendingOrdersQuery);
   
   const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
@@ -273,7 +271,7 @@ const renderOrdersContent = () => {
             <div className="rounded-lg border mt-4 p-4 text-center">
              <h3 className="text-lg font-semibold">لا توجد طلبات جديدة</h3>
              <p className="text-muted-foreground mt-2">
-               ميزة عرض الطلبات قيد الصيانة حاليًا.
+               لا توجد طلبات قيد التنفيذ في الوقت الحالي.
              </p>
            </div>
          )
@@ -330,7 +328,7 @@ const renderOrdersContent = () => {
                     <CheckCircle className="h-16 w-16 text-green-500 mb-4" />
                     <h3 className="text-xl font-bold">تمت العملية بنجاح</h3>
                     <p className="text-muted-foreground mt-2">
-                        تم شحن محفظة <span className="font-semibold text-primary">{successInfo?.username}</span> بمبلغ <span className="font-semibold text-primary">{successInfo?.amount.toFixed(2)} ج.س</span>.
+                        تم شحن محفظة <span className="font-semibold text-primary">{successInfo?.username}</span> بمبلغ <span className="font-semibold text-primary">{Math.round(successInfo?.amount || 0)} ج.س</span>.
                     </p>
                     <Button onClick={resetFundingFlow} className="mt-6 w-full max-w-sm">
                         <RefreshCw />
@@ -437,7 +435,7 @@ const renderOrdersContent = () => {
                           </div>
                         </TableCell>
                         <TableCell>
-                          {`${user.balance.toFixed(2)} ج.س`}
+                          {`${Math.round(user.balance)} ج.س`}
                         </TableCell>
                       </TableRow>
                     ))
@@ -523,7 +521,7 @@ const renderOrdersContent = () => {
                                 className="h-8 max-w-[100px]"
                               />
                             ) : (
-                              `${offer.price.toFixed(2)} ج.س`
+                              `${Math.round(offer.price)} ج.س`
                             )}
                           </TableCell>
                           <TableCell className="text-left">

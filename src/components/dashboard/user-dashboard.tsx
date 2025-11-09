@@ -5,7 +5,7 @@
 import { useState, useMemo } from 'react';
 import type { User, Offer, UserGameOffer } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, runTransaction, doc, query, orderBy, where } from 'firebase/firestore';
+import { collection, runTransaction, doc, query, orderBy, where, addDoc } from 'firebase/firestore';
 import { CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -128,7 +128,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
 
     try {
         const userRef = doc(firestore, 'users', user.id);
-        const userGameOfferRef = doc(collection(firestore, `users/${user.id}/userGameOffers`));
+        const userGameOffersCollectionRef = collection(firestore, `users/${user.id}/userGameOffers`);
 
         await runTransaction(firestore, async (transaction) => {
             const userDoc = await transaction.get(userRef);
@@ -144,24 +144,28 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
 
             transaction.update(userRef, { balance: newBalance });
 
-            const newPurchase: Omit<UserGameOffer, 'id' | 'createdAt'> & { createdAt: Date } = {
-              userId: user.id,
-              username: user.username,
-              walletId: user.walletId,
-              gameOfferId: selectedOffer.id,
-              gameName: selectedOffer.gameName,
-              offerName: selectedOffer.offerName,
-              price: selectedOffer.price,
-              status: "pending",
-              createdAt: new Date(),
-              // Add gameId and gameUsername if they exist
-              ...(GAMES_REQUIRING_ID.includes(selectedOffer.gameName) && {
+            // Since we are creating a new document in a subcollection, we don't set it in the transaction
+            // directly. We will create it after the transaction succeeds.
+        });
+
+        // If transaction is successful, create the purchase order document.
+        const newPurchase: Omit<UserGameOffer, 'id' | 'createdAt'> & { createdAt: Date } = {
+            userId: user.id,
+            username: user.username,
+            walletId: user.walletId,
+            gameOfferId: selectedOffer.id,
+            gameName: selectedOffer.gameName,
+            offerName: selectedOffer.offerName,
+            price: selectedOffer.price,
+            status: "pending",
+            createdAt: new Date(),
+            ...(GAMES_REQUIRING_ID.includes(selectedOffer.gameName) && {
                 gameId: gameId,
                 gameUsername: gameUsername
-              })
-            }
-            transaction.set(userGameOfferRef, newPurchase);
-        });
+            })
+        };
+        
+        await addDoc(userGameOffersCollectionRef, newPurchase);
 
         toast({
             title: "تمت عملية الشراء بنجاح!",
@@ -274,7 +278,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
               myOrders.map((order) => (
                 <TableRow key={order.id}>
                   <TableCell className="font-medium">{order.offerName}</TableCell>
-                  <TableCell>{order.price.toFixed(2)} ج.س</TableCell>
+                  <TableCell>{Math.round(order.price)} ج.س</TableCell>
                   <TableCell>
                     {order.createdAt ? format(new Date((order.createdAt as any).seconds * 1000), 'dd/MM/yyyy hh:mm a') : 'N/A'}
                   </TableCell>
@@ -298,7 +302,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
         <div className="flex justify-between items-center">
           <div>
             <h2 className="text-2xl font-bold">أهلاً بك، {user.username}</h2>
-            <p className="text-muted-foreground">رصيدك الحالي: <span className="font-bold text-primary">{user.balance.toFixed(2)} ج.س</span></p>
+            <p className="text-muted-foreground">رصيدك الحالي: <span className="font-bold text-primary">{Math.round(user.balance)} ج.س</span></p>
              <div className="flex items-center gap-2 mt-2">
                 <p className="text-sm text-muted-foreground">رقم محفظتك: <span className="font-mono text-xs">{user.walletId}</span></p>
                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleCopyWalletId(user.walletId)}>
@@ -338,7 +342,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
           <AlertDialogHeader>
             <AlertDialogTitle>تأكيد عملية الشراء</AlertDialogTitle>
             <AlertDialogDescription>
-              هل أنت متأكد من أنك تريد شراء "{selectedOffer?.offerName}" مقابل <span className="font-bold text-primary">{selectedOffer?.price.toFixed(2)} ج.س</span>؟
+              هل أنت متأكد من أنك تريد شراء "{selectedOffer?.offerName}" مقابل <span className="font-bold text-primary">{Math.round(selectedOffer?.price || 0)} ج.س</span>؟
               سيتم خصم المبلغ من رصيدك.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -379,7 +383,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
                 <Separator />
                 <div className="text-center">
                     <p>ستقوم بشراء: <span className="font-semibold">{selectedOffer?.offerName}</span></p>
-                    <p>مقابل: <span className="font-bold text-primary">{selectedOffer?.price.toFixed(2)} ج.س</span></p>
+                    <p>مقابل: <span className="font-bold text-primary">{Math.round(selectedOffer?.price || 0)} ج.س</span></p>
                 </div>
             </div>
             <DialogFooter>

@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import type { Offer } from '@/lib/types';
@@ -17,7 +18,7 @@ const OfferCard = ({ offer, onClick }: OfferCardProps) => {
     >
       <CardContent className="p-4 flex flex-col items-center text-center">
         <h4 className="text-md font-semibold text-secondary-foreground mb-2 flex-grow">{offer.offerName} {offer.unit}</h4>
-        <p className="text-xl font-bold text-primary">{offer.price.toFixed(2)} ج.س</p>
+        <p className="text-xl font-bold text-primary">{Math.round(offer.price)} ج.س</p>
       </CardContent>
     </Card>
   );
