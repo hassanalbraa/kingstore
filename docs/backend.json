@@ -127,6 +127,48 @@
         "status",
         "createdAt"
       ]
+    },
+    "Transaction": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Transaction",
+      "type": "object",
+      "description": "Represents a financial transaction for a user, either a purchase or a top-up.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Transaction."
+        },
+        "userId": {
+          "type": "string",
+          "description": "The ID of the user this transaction belongs to."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["purchase", "top-up"],
+          "description": "The type of transaction."
+        },
+        "amount": {
+          "type": "number",
+          "description": "The value of the transaction. Can be negative for purchases."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the transaction (e.g., 'Purchase: 60 شدة' or 'Admin top-up')."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp of when the transaction occurred."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "type",
+        "amount",
+        "description",
+        "createdAt"
+      ]
     }
   },
   "auth": {
@@ -155,6 +197,16 @@
                 },
                 "description": "A sub-collection storing the game offers purchased by this specific user."
               }
+            },
+            {
+              "path": "transactions/{transactionId}",
+              "definition": {
+                "entityName": "Transaction",
+                "schema": {
+                  "$ref": "#/backend/entities/Transaction"
+                },
+                "description": "A sub-collection storing all financial transactions for this user."
+              }
             }
           ]
         }
@@ -180,8 +232,6 @@
         }
       }
     ],
-    "reasoning": "The Firestore data structure is designed to support the KING STORE application's features, focusing on user authentication, game offer management, and admin functionalities. The structure prioritizes authorization independence, clarity, and scalability. It avoids hierarchical authorization dependencies by denormalizing necessary authorization data. Structural segregation ensures that collections have a homogeneous security posture, simplifying security rules.  \n\nThe `users` collection stores user profiles.  Admin privileges are managed via a separate `roles_admin` collection, ensuring that checking for admin status relies on document existence, and not on mutable data within the user document itself.  This provides a more robust and reliable authorization mechanism. The `gameOffers` collection stores information about available game offers.  The `userGameOffers` collection is a sub-collection under each user, ensuring data ownership is explicit in the path, which dramatically simplifies security rules. Admins can query all orders across all users using a collection group query, which is secured by a separate rule."
+    "reasoning": "The Firestore data structure is designed to support the KING STORE application's features, focusing on user authentication, game offer management, and admin functionalities. The structure prioritizes authorization independence, clarity, and scalability. It avoids hierarchical authorization dependencies by denormalizing necessary authorization data. Structural segregation ensures that collections have a homogeneous security posture, simplifying security rules.  \n\nThe `users` collection stores user profiles.  Admin privileges are managed via a separate `roles_admin` collection, ensuring that checking for admin status relies on document existence, and not on mutable data within the user document itself.  This provides a more robust and reliable authorization mechanism. The `gameOffers` collection stores information about available game offers.  The `userGameOffers` collection is a sub-collection under each user, ensuring data ownership is explicit in the path, which dramatically simplifies security rules. The `transactions` collection is also a sub-collection under each user to track all financial movements. Admins can query all orders across all users using a collection group query, which is secured by a separate rule."
   }
 }
-
-    

@@ -2,9 +2,9 @@
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
-import type { User, Offer, UserGameOffer, WithId } from '@/lib/types';
+import type { User, Offer, UserGameOffer, WithId, Transaction } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, useUser, useDoc } from '@/firebase';
-import { collection, doc, getDocs, query, where, runTransaction, updateDoc, collectionGroup } from 'firebase/firestore';
+import { collection, doc, getDocs, query, where, runTransaction, updateDoc, collectionGroup, addDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -70,28 +70,18 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
 
   useEffect(() => {
     const fetchPendingOrders = async () => {
-      if (!firestore || !isCurrentUserAdmin || !users) {
-        if(!isCurrentUserAdmin) setOrdersLoading(false);
+      if (!firestore || !isCurrentUserAdmin) {
         return;
       }
-
       setOrdersLoading(true);
       try {
+        const q = query(collectionGroup(firestore, 'userGameOffers'), where('status', '==', 'pending'));
+        const querySnapshot = await getDocs(q);
         const allPendingOrders: WithId<UserGameOffer>[] = [];
-        
-        if (users && users.length > 0) {
-            const promises = users.map(async (user) => {
-                if (user.role === 'admin') return;
-                const userOrdersRef = collection(firestore, 'users', user.id, 'userGameOffers');
-                const q = query(userOrdersRef, where('status', '==', 'pending'));
-                const querySnapshot = await getDocs(q);
-                querySnapshot.forEach((doc) => {
-                    allPendingOrders.push({ id: doc.id, ...(doc.data() as UserGameOffer) });
-                });
-            });
 
-            await Promise.all(promises);
-        }
+        querySnapshot.forEach((doc) => {
+            allPendingOrders.push({ id: doc.id, ...(doc.data() as UserGameOffer) });
+        });
         
         allPendingOrders.sort((a, b) => {
             const dateA = a.createdAt as any;
@@ -112,10 +102,12 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
       }
     };
 
-    if(!usersLoading && users){
-        fetchPendingOrders();
+    if (isCurrentUserAdmin) {
+      fetchPendingOrders();
+    } else {
+      setOrdersLoading(false);
     }
-  }, [firestore, isCurrentUserAdmin, users, usersLoading, toast]);
+  }, [firestore, isCurrentUserAdmin, toast]);
 
 
   const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
@@ -250,6 +242,17 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
         const newBalance = currentBalance + amount;
         transaction.update(userRef, { balance: newBalance });
       });
+
+      // Create a transaction record
+      const transactionCollectionRef = collection(firestore, 'users', foundUser.id, 'transactions');
+      const newTransaction: Omit<Transaction, 'id'> = {
+        userId: foundUser.id,
+        type: 'top-up',
+        amount: amount,
+        description: `شحن من الأدمن`,
+        createdAt: new Date(),
+      };
+      await addDoc(transactionCollectionRef, newTransaction);
       
       setSuccessInfo({ username: foundUser.username, amount: amount });
       setFundingStep('success');

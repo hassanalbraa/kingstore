@@ -34,3 +34,13 @@ export interface UserGameOffer {
   gameId?: string; // Optional: For game-specific user ID
   gameUsername?: string; // Optional: For game-specific username
 }
+
+
+export interface Transaction {
+  id: string;
+  userId: string;
+  type: 'purchase' | 'top-up';
+  amount: number;
+  description: string;
+  createdAt: Date | { seconds: number; nanoseconds: number; };
+}
