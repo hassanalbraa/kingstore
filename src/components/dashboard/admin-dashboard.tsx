@@ -3,7 +3,7 @@
 
 import { useState, useMemo } from 'react';
 import type { User, Offer, UserGameOffer } from '@/lib/types';
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, useUser } from '@/firebase';
 import { collection, doc, getDocs, query, where, runTransaction, updateDoc, collectionGroup, orderBy } from 'firebase/firestore';
 import { CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,9 +25,16 @@ interface AdminDashboardProps {
 
 const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
   const firestore = useFirestore();
+  const { user: adminUser } = useUser();
   const { toast } = useToast();
 
-  const usersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]);
+  const usersQuery = useMemoFirebase(() => {
+    // Only fetch users if the current user is an admin.
+    if (firestore && adminUser && adminUser.email === 'admin@king.store') {
+        return query(collection(firestore, 'users'), where('role', '==', 'user'));
+    }
+    return null;
+  }, [firestore, adminUser]);
   const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
 
   const offersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'gameOffers') : null, [firestore]);
@@ -276,7 +283,7 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
                   {usersLoading ? (
                     <TableRow><TableCell colSpan={3} className="text-center"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
                   ) : (
-                    users?.filter(u => u.role !== 'admin').map((user) => (
+                    users?.map((user) => (
                       <TableRow key={user.id}>
                         <TableCell className="font-medium">{user.username}</TableCell>
                          <TableCell>

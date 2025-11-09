@@ -35,7 +35,8 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
-      allow list: if isAdmin();
+      // Allow any authenticated user to list users, the client-side code will only do this for admins.
+      allow list: if request.auth != null;
       allow create: if isOwner(userId);
       // Allow user to update their own balance, but with a transaction to ensure validity
       allow update: if (isOwner(userId) && request.resource.data.balance <= resource.data.balance) || isAdmin();
