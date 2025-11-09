@@ -1,19 +1,17 @@
 
-
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
 import type { User, Offer, UserGameOffer } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, runTransaction, doc, query, orderBy, where, addDoc } from 'firebase/firestore';
-import { CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import OfferCard from './offer-card';
 import GameCard from './game-card';
-import { Settings, LogOut, Copy, ArrowRight, Loader2, ListOrdered, ShoppingCart } from 'lucide-react';
+import { Copy, ArrowRight, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -33,10 +31,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
+import BottomNavBar, { type NavItem } from '../layout/bottom-nav-bar';
+
 
 interface UserDashboardProps {
   user: User;
@@ -44,8 +43,9 @@ interface UserDashboardProps {
   onGoToSettings: () => void;
 }
 
-// Games that require extra user input (ID, username)
 const GAMES_REQUIRING_ID = ['PUBG', 'Free Fire', 'عروض التيك توك'];
+
+type UserView = 'home' | 'orders' | 'account' | 'support';
 
 const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) => {
   const { toast } = useToast();
@@ -55,19 +55,23 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
   const [showGameIdDialog, setShowGameIdDialog] = useState(false);
   const [gameId, setGameId] = useState('');
   const [gameUsername, setGameUsername] = useState('');
+  const [view, setView] = useState<UserView>('home');
   
   const firestore = useFirestore();
   
-  const offersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'gameOffers') : null, [firestore]);
+  const offersQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'gameOffers');
+  }, [firestore]);
   const { data: gameOffers, isLoading: offersLoading } = useCollection<Offer>(offersQuery);
 
   const myOrdersQuery = useMemoFirebase(() => {
-    if (!firestore || !user?.id) return null; // FIX: Ensure user and firestore exist
+    if (!firestore || !user?.id) return null;
     return query(
       collection(firestore, 'users', user.id, 'userGameOffers'),
       orderBy('createdAt', 'desc')
     );
-  }, [firestore, user]);
+  }, [firestore, user?.id]);
   
   const { data: myOrders, isLoading: ordersLoading } = useCollection<UserGameOffer>(myOrdersQuery);
 
@@ -95,9 +99,6 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
     setSelectedOffer(offer);
     if (GAMES_REQUIRING_ID.includes(offer.gameName)) {
       setShowGameIdDialog(true);
-    } else {
-      // For other games, show the simple confirmation dialog
-      // This part remains unchanged, just setSelectedOffer will trigger the existing AlertDialog
     }
   };
   
@@ -114,7 +115,6 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
         return;
     }
     
-    // For games requiring ID, check if fields are filled
     if (GAMES_REQUIRING_ID.includes(selectedOffer.gameName) && (!gameId || !gameUsername)) {
        toast({
             variant: "destructive",
@@ -145,7 +145,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
         
         const ordersCollectionRef = collection(firestore, 'users', user.id, 'userGameOffers');
 
-        const newPurchaseData = {
+        const newPurchaseData: Omit<UserGameOffer, 'id'> = {
             userId: user.id,
             username: user.username,
             walletId: user.walletId,
@@ -153,7 +153,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
             gameName: selectedOffer.gameName,
             offerName: selectedOffer.offerName,
             price: selectedOffer.price,
-            status: "pending" as const,
+            status: "pending",
             createdAt: new Date(),
             ...(GAMES_REQUIRING_ID.includes(selectedOffer.gameName) && {
                 gameId: gameId,
@@ -162,7 +162,6 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
         };
         
         await addDoc(ordersCollectionRef, newPurchaseData);
-
 
         toast({
             title: "تمت عملية الشراء بنجاح!",
@@ -186,7 +185,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
   };
 
 
-  const renderOffersContent = () => {
+  const renderHomeContent = () => {
     if (offersLoading) {
       return (
         <div className="flex justify-center items-center p-10">
@@ -196,7 +195,6 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
       );
     }
 
-    // If a game is selected, show its offers
     if (selectedGame && groupedOffers[selectedGame]) {
       return (
         <div>
@@ -206,7 +204,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
              </Button>
              <h4 className="text-lg font-bold mr-2">{selectedGame}</h4>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4">
             {groupedOffers[selectedGame].map((offer) => (
               <OfferCard key={offer.id} offer={offer} onClick={() => handleSelectOffer(offer)} />
             ))}
@@ -215,12 +213,11 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
       );
     }
 
-    // Otherwise, show the list of games
     return (
       <div>
         <h3 className="text-xl font-semibold mb-4 text-center">اختر لعبة</h3>
         {gameNames.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {gameNames.map((gameName) => (
               <GameCard 
                 key={gameName} 
@@ -291,49 +288,88 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
         </Table>
       </div>
     )
-  }
+  };
 
-  return (
-    <>
-      <CardHeader>
-        <div className="flex justify-between items-center">
+  const renderAccountContent = () => {
+    return (
+      <div className="p-4">
+        <h3 className="text-xl font-semibold mb-4">ملفي الشخصي</h3>
+        <div className="space-y-4">
+           <div>
+            <p className="text-muted-foreground">اسم المستخدم</p>
+            <p className="font-bold text-lg">{user.username}</p>
+          </div>
+           <div>
+            <p className="text-muted-foreground">البريد الإلكتروني</p>
+            <p className="font-bold text-lg">{user.email}</p>
+          </div>
           <div>
-            <h2 className="text-2xl font-bold">أهلاً بك، {user.username}</h2>
-            <p className="text-muted-foreground">رصيدك الحالي: <span className="font-bold text-primary">{user.balance} ج.س</span></p>
-             <div className="flex items-center gap-2 mt-2">
-                <p className="text-sm text-muted-foreground">رقم محفظتك: <span className="font-mono text-xs">{user.walletId}</span></p>
+            <p className="text-muted-foreground">رصيدك الحالي</p>
+            <p className="font-bold text-lg text-primary">{user.balance} ج.س</p>
+          </div>
+           <div className="flex items-center gap-2 mt-2">
+                <p className="text-sm text-muted-foreground">رقم محفظتك:</p>
+                <span className="font-mono text-sm">{user.walletId}</span>
                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleCopyWalletId(user.walletId)}>
                     <Copy className="h-4 w-4"/>
                 </Button>
-             </div>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="ghost" size="icon" onClick={onGoToSettings} aria-label="الإعدادات">
-              <Settings className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={onLogout} aria-label="تسجيل الخروج">
-              <LogOut className="h-5 w-5" />
-            </Button>
-          </div>
+           </div>
+           <Separator />
+           <Button variant="outline" onClick={onGoToSettings} className="w-full">إعدادات الحساب (تغيير كلمة المرور)</Button>
+           <Button onClick={onLogout} className="w-full">تسجيل الخروج</Button>
         </div>
-      </CardHeader>
-      <Separator />
-      <CardContent className="pt-6">
-         <Tabs defaultValue="offers" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="offers"><ShoppingCart className="ml-1"/> العروض</TabsTrigger>
-              <TabsTrigger value="orders"><ListOrdered className="ml-1" /> طلباتي</TabsTrigger>
-            </TabsList>
-            <TabsContent value="offers">
-              {renderOffersContent()}
-            </TabsContent>
-            <TabsContent value="orders">
-              {renderOrdersContent()}
-            </TabsContent>
-          </Tabs>
-      </CardContent>
+      </div>
+    );
+  };
+  
+    const renderSupportContent = () => (
+    <div className="p-4 text-center">
+      <h3 className="text-xl font-semibold mb-4">الدعم الفني</h3>
+      <p className="text-muted-foreground">
+        للتواصل مع الدعم الفني، يرجى مراسلتنا على واتساب.
+      </p>
+       <Button className="mt-4" asChild>
+        <a href="https://wa.me/249123456789" target="_blank" rel="noopener noreferrer">
+            تواصل عبر واتساب
+        </a>
+       </Button>
+    </div>
+  );
 
-       {/* Confirmation Dialog for games NOT requiring ID */}
+  const navItems: NavItem[] = [
+    { id: 'account', label: 'حسابي', icon: 'User' },
+    { id: 'support', label: 'الدعم', icon: 'MessageSquare' },
+    { id: 'home', label: 'الرئيسية', icon: 'Home', isCentral: true },
+    { id: 'orders', label: 'طلباتي', icon: 'Package' },
+    { id: 'logout', label: 'خروج', icon: 'LogOut', onClick: onLogout },
+  ];
+
+  const handleNav = (selectedView: UserView) => {
+    if (selectedView === 'account') {
+        onGoToSettings();
+    } else {
+        setView(selectedView);
+    }
+  }
+  
+  const renderCurrentView = () => {
+    switch (view) {
+        case 'home': return renderHomeContent();
+        case 'orders': return renderOrdersContent();
+        case 'account': return renderAccountContent();
+        case 'support': return renderSupportContent();
+        default: return renderHomeContent();
+    }
+  }
+
+
+  return (
+    <div className="flex flex-col h-full w-full">
+      <main className="flex-grow p-4 pb-24 overflow-y-auto">
+        {renderCurrentView()}
+      </main>
+
+      {/* Dialogs */}
       <AlertDialog open={!!selectedOffer && !GAMES_REQUIRING_ID.includes(selectedOffer.gameName)} onOpenChange={(open) => !open && setSelectedOffer(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -352,7 +388,6 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Custom Dialog for games REQUIRING ID */}
       <Dialog open={showGameIdDialog} onOpenChange={(open) => {
           if (!open) {
               setShowGameIdDialog(false);
@@ -391,10 +426,10 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
             </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+      
+      <BottomNavBar<UserView> items={navItems} activeView={view} setView={setView} />
+    </div>
   );
 };
 
 export default UserDashboard;
-
-    

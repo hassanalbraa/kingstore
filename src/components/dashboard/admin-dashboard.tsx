@@ -1,22 +1,20 @@
 
-
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
 import type { User, Offer, UserGameOffer, WithId } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, useUser, useDoc } from '@/firebase';
-import { collection, doc, getDocs, query, where, runTransaction, updateDoc, collectionGroup, getDoc } from 'firebase/firestore';
-import { CardHeader, CardContent } from '@/components/ui/card';
+import { collection, doc, getDocs, query, where, runTransaction, updateDoc, collectionGroup } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { LogOut, Edit, Save, XCircle, Loader2, PlusCircle, Copy, Database, Gift, Search, ArrowRight, CheckCircle, RefreshCw, Check } from 'lucide-react';
+import { Edit, Save, XCircle, Loader2, PlusCircle, Copy, Database, Gift, Search, ArrowRight, CheckCircle, RefreshCw, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { seedGameOffers } from '@/lib/seed';
 import { Combobox } from '@/components/ui/combobox';
 import { Badge } from '@/components/ui/badge';
+import BottomNavBar, { type NavItem } from '../layout/bottom-nav-bar';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -29,10 +27,14 @@ interface FundingSuccessInfo {
     amount: number;
 }
 
+type AdminView = 'orders' | 'users' | 'fund' | 'offers';
+
 const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
   const firestore = useFirestore();
   const { user: authUser } = useUser();
   const { toast } = useToast();
+  const [view, setView] = useState<AdminView>('orders');
+
 
   const currentUserDocRef = useMemoFirebase(() => {
     if (firestore && authUser) {
@@ -76,20 +78,21 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
       setOrdersLoading(true);
       try {
         const allPendingOrders: WithId<UserGameOffer>[] = [];
+        
+        if (users && users.length > 0) {
+            const promises = users.map(async (user) => {
+                if (user.role === 'admin') return;
+                const userOrdersRef = collection(firestore, 'users', user.id, 'userGameOffers');
+                const q = query(userOrdersRef, where('status', '==', 'pending'));
+                const querySnapshot = await getDocs(q);
+                querySnapshot.forEach((doc) => {
+                    allPendingOrders.push({ id: doc.id, ...(doc.data() as UserGameOffer) });
+                });
+            });
 
-        // Create a batch of promises to fetch pending orders for all users
-        const promises = users.map(async (user) => {
-          const userOrdersRef = collection(firestore, 'users', user.id, 'userGameOffers');
-          const q = query(userOrdersRef, where('status', '==', 'pending'));
-          const querySnapshot = await getDocs(q);
-          querySnapshot.forEach((doc) => {
-            allPendingOrders.push({ id: doc.id, ...(doc.data() as UserGameOffer) });
-          });
-        });
-
-        await Promise.all(promises);
-
-        // Sort orders by creation date, most recent first
+            await Promise.all(promises);
+        }
+        
         allPendingOrders.sort((a, b) => {
             const dateA = a.createdAt as any;
             const dateB = b.createdAt as any;
@@ -109,8 +112,7 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
       }
     };
 
-    // We depend on `users` being loaded to fetch orders for each user.
-    if(!usersLoading){
+    if(!usersLoading && users){
         fetchPendingOrders();
     }
   }, [firestore, isCurrentUserAdmin, users, usersLoading, toast]);
@@ -297,7 +299,6 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
     try {
         const orderRef = doc(firestore, 'users', order.userId, 'userGameOffers', order.id);
         await updateDoc(orderRef, { status: 'completed' });
-        // The real-time listener will automatically remove the order from the list.
         toast({ title: "تم!", description: "تم تحديث حالة الطلب إلى مكتمل." });
         setPendingOrders(prev => prev.filter(p => p.id !== order.id));
     } catch (error) {
@@ -329,10 +330,6 @@ const renderOrdersContent = () => {
            <p className="mr-4">جاري تحميل الطلبات الجديدة...</p>
          </div>
        );
-    }
-
-    if (!isCurrentUserAdmin) {
-      return <p className="text-center text-muted-foreground p-4">يتم التحقق من صلاحيات الأدمن...</p>
     }
 
     if (!pendingOrders || pendingOrders.length === 0) {
@@ -456,31 +453,147 @@ const renderOrdersContent = () => {
     }
 };
 
+ const renderUsersContent = () => (
+    <div className="rounded-lg border mt-4">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>اسم المستخدم</TableHead>
+            <TableHead>رقم المحفظة</TableHead>
+            <TableHead>الرصيد</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {usersLoading ? (
+            <TableRow><TableCell colSpan={3} className="text-center"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
+          ) : (
+            displayUsers?.map((user) => (
+              <TableRow key={user.id}>
+                <TableCell className="font-medium">{user.username}</TableCell>                         <TableCell>
+                  <div className="flex items-center gap-2">
+                     <span className="font-mono text-sm">{user.walletId}</span>
+                     <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleCopyWalletId(user.walletId)}>
+                        <Copy className="h-4 w-4"/>
+                     </Button>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  {`${user.balance} ج.س`}
+                </TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
+    </div>
+  );
+
+  const renderOffersContent = () => (
+    <div className="space-y-6 mt-4">
+      <div className="p-4 border rounded-lg space-y-4">
+        <h3 className="text-lg font-semibold">إضافة عرض جديد</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+                <Label>اسم اللعبة</Label>
+                <Combobox
+                  items={gameNames}
+                  value={newGameName}
+                  onChange={setNewGameName}
+                  placeholder="اختر أو اكتب اسم اللعبة..."
+                />
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="new-offer-name">اسم العرض</Label>
+                <Input id="new-offer-name" value={newOfferName} onChange={(e) => setNewOfferName(e.target.value)} placeholder="مثال: 60 شدة" />
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="new-price">السعر</Label>
+                <Input id="new-price" type="number" value={newPrice} onChange={(e) => setNewPrice(e.target.value)} placeholder="مثال: 3500" />
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="new-unit">الوحدة</Label>
+                <Input id="new-unit" value={newUnit} onChange={(e) => setNewUnit(e.target.value)} placeholder="مثال: شدة أو 💎" />
+            </div>
+        </div>
+        <Button onClick={handleAddNewOffer} disabled={isAddingOffer} className="w-full">
+            {isAddingOffer ? <Loader2 className="animate-spin" /> : <Gift />}
+            إضافة العرض
+        </Button>
+      </div>
+
+      <div className="p-4 border rounded-lg">
+         <Button onClick={handleSeedData} disabled={isSeeding}>
+            {isSeeding ? <Loader2 className="animate-spin"/> : <Database />}
+            إضافة العروض الأولية
+        </Button>
+        <p className="text-xs text-muted-foreground mt-2">
+          اضغط هنا لإضافة قائمة العروض المبدئية إلى قاعدة البيانات. هذه العملية تتم مرة واحدة فقط.
+        </p>
+      </div>
+
+      <div className="rounded-lg border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>اللعبة</TableHead>
+              <TableHead>العرض</TableHead>
+              <TableHead>السعر</TableHead>
+              <TableHead className="text-left">تعديل</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {offersLoading ? (
+              <TableRow><TableCell colSpan={4} className="text-center"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
+            ) : offersError ? (
+               <TableRow><TableCell colSpan={4} className="text-center text-red-500">حدث خطأ أثناء تحميل العروض</TableCell></TableRow>
+            ) : (
+              offers?.map((offer) => (
+                <TableRow key={offer.id}>
+                  <TableCell className="font-medium">{offer.gameName}</TableCell>
+                  <TableCell>{offer.offerName}</TableCell>
+                  <TableCell>
+                    {editingOfferId === offer.id ? (
+                      <Input
+                        type="number"
+                        value={tempPrice}
+                        onChange={(e) => setTempPrice(e.target.value)}
+                        className="h-8 max-w-[100px]"
+                      />
+                    ) : (
+                      `${offer.price} ج.س`
+                    )}
+                  </TableCell>
+                  <TableCell className="text-left">
+                    {editingOfferId === offer.id ? (
+                      <div className="flex gap-1">
+                        <Button size="icon" className="h-8 w-8" onClick={() => handleSaveOffer(offer.id)}><Save className="h-4 w-4" /></Button>
+                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setEditingOfferId(null)}><XCircle className="h-4 w-4" /></Button>
+                      </div>
+                    ) : (
+                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleEditOffer(offer)}><Edit className="h-4 w-4" /></Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  )
+
+
   if (isCurrentUserLoading) {
     return (
-      <div className="flex justify-center items-center p-10">
+      <div className="flex-grow flex justify-center items-center p-10">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
   }
 
-  if (!authUser) {
-     return (
-       <CardContent>
-          <div className="text-center p-10">
-            <h3 className="text-xl font-bold text-destructive">وصول مرفوض</h3>
-            <p className="text-muted-foreground mt-2">تحتاج لتسجيل الدخول للوصول لهذه الصفحة.</p>
-             <Button onClick={onLogout} className="mt-4">
-                الذهاب لصفحة الدخول
-            </Button>
-          </div>
-       </CardContent>
-    );
-  }
-
   if (!isCurrentUserAdmin && !isCurrentUserLoading) {
     return (
-       <CardContent>
+       <main className="flex-grow flex items-center justify-center p-4">
           <div className="text-center p-10">
             <h3 className="text-xl font-bold text-destructive">وصول مرفوض</h3>
             <p className="text-muted-foreground mt-2">ليس لديك صلاحيات الأدمن للوصول لهذه الصفحة.</p>
@@ -488,170 +601,38 @@ const renderOrdersContent = () => {
                 تسجيل الخروج
             </Button>
           </div>
-       </CardContent>
+       </main>
     );
   }
 
+  const navItems: NavItem[] = [
+    { id: 'orders', label: 'الطلبات', icon: 'Package' },
+    { id: 'users', label: 'المستخدمين', icon: 'Users' },
+    { id: 'fund', label: 'شحن', icon: 'Wallet' },
+    { id: 'offers', label: 'العروض', icon: 'Gift' },
+    { id: 'logout', label: 'خروج', icon: 'LogOut', onClick: onLogout },
+  ];
+
+  const renderCurrentView = () => {
+    switch (view) {
+        case 'orders': return renderOrdersContent();
+        case 'users': return renderUsersContent();
+        case 'fund': return renderFundWalletContent();
+        case 'offers': return renderOffersContent();
+        default: return renderOrdersContent();
+    }
+  }
+
   return (
-    <>
-      <CardHeader>
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold">لوحة تحكم الأدمن</h2>
-          <Button variant="ghost" size="icon" onClick={onLogout} aria-label="تسجيل الخروج">
-            <LogOut className="h-5 w-5" />
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <Tabs defaultValue="orders" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="orders">إدارة الطلبات</TabsTrigger>
-            <TabsTrigger value="users">إدارة المستخدمين</TabsTrigger>
-            <TabsTrigger value="fund">شحن المحافظ</TabsTrigger>
-            <TabsTrigger value="offers">إدارة العروض</TabsTrigger>
-          </TabsList>
-          <TabsContent value="orders">
-            {renderOrdersContent()}
-          </TabsContent>
-          <TabsContent value="users">
-            <div className="rounded-lg border mt-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>اسم المستخدم</TableHead>
-                    <TableHead>رقم المحفظة</TableHead>
-                    <TableHead>الرصيد</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {usersLoading ? (
-                    <TableRow><TableCell colSpan={3} className="text-center"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
-                  ) : (
-                    displayUsers?.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell className="font-medium">{user.username}</TableCell>                         <TableCell>
-                          <div className="flex items-center gap-2">
-                             <span className="font-mono text-sm">{user.walletId}</span>
-                             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleCopyWalletId(user.walletId)}>
-                                <Copy className="h-4 w-4"/>
-                             </Button>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {`${user.balance} ج.س`}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </TabsContent>
-          <TabsContent value="fund">
-            <div className="mt-4 p-4 border rounded-lg">
-                {renderFundWalletContent()}
-            </div>
-          </TabsContent>
-          <TabsContent value="offers">
-            <div className="space-y-6 mt-4">
-              <div className="p-4 border rounded-lg space-y-4">
-                <h3 className="text-lg font-semibold">إضافة عرض جديد</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label>اسم اللعبة</Label>
-                        <Combobox
-                          items={gameNames}
-                          value={newGameName}
-                          onChange={setNewGameName}
-                          placeholder="اختر أو اكتب اسم اللعبة..."
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="new-offer-name">اسم العرض</Label>
-                        <Input id="new-offer-name" value={newOfferName} onChange={(e) => setNewOfferName(e.target.value)} placeholder="مثال: 60 شدة" />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="new-price">السعر</Label>
-                        <Input id="new-price" type="number" value={newPrice} onChange={(e) => setNewPrice(e.target.value)} placeholder="مثال: 3500" />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="new-unit">الوحدة</Label>
-                        <Input id="new-unit" value={newUnit} onChange={(e) => setNewUnit(e.target.value)} placeholder="مثال: شدة أو 💎" />
-                    </div>
-                </div>
-                <Button onClick={handleAddNewOffer} disabled={isAddingOffer} className="w-full">
-                    {isAddingOffer ? <Loader2 className="animate-spin" /> : <Gift />}
-                    إضافة العرض
-                </Button>
-              </div>
-
-              <div className="p-4 border rounded-lg">
-                 <Button onClick={handleSeedData} disabled={isSeeding}>
-                    {isSeeding ? <Loader2 className="animate-spin"/> : <Database />}
-                    إضافة العروض الأولية
-                </Button>
-                <p className="text-xs text-muted-foreground mt-2">
-                  اضغط هنا لإضافة قائمة العروض المبدئية إلى قاعدة البيانات. هذه العملية تتم مرة واحدة فقط.
-                </p>
-              </div>
-
-              <div className="rounded-lg border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>اللعبة</TableHead>
-                      <TableHead>العرض</TableHead>
-                      <TableHead>السعر</TableHead>
-                      <TableHead className="text-left">تعديل</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {offersLoading ? (
-                      <TableRow><TableCell colSpan={4} className="text-center"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
-                    ) : offersError ? (
-                       <TableRow><TableCell colSpan={4} className="text-center text-red-500">حدث خطأ أثناء تحميل العروض</TableCell></TableRow>
-                    ) : (
-                      offers?.map((offer) => (
-                        <TableRow key={offer.id}>
-                          <TableCell className="font-medium">{offer.gameName}</TableCell>
-                          <TableCell>{offer.offerName}</TableCell>
-                          <TableCell>
-                            {editingOfferId === offer.id ? (
-                              <Input
-                                type="number"
-                                value={tempPrice}
-                                onChange={(e) => setTempPrice(e.target.value)}
-                                className="h-8 max-w-[100px]"
-                              />
-                            ) : (
-                              `${offer.price} ج.س`
-                            )}
-                          </TableCell>
-                          <TableCell className="text-left">
-                            {editingOfferId === offer.id ? (
-                              <div className="flex gap-1">
-                                <Button size="icon" className="h-8 w-8" onClick={() => handleSaveOffer(offer.id)}><Save className="h-4 w-4" /></Button>
-                                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setEditingOfferId(null)}><XCircle className="h-4 w-4" /></Button>
-                              </div>
-                            ) : (
-                              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleEditOffer(offer)}><Edit className="h-4 w-4" /></Button>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-    </>
+     <div className="flex flex-col h-full w-full">
+      <main className="flex-grow p-4 pb-24 overflow-y-auto">
+        <h2 className="text-2xl font-bold mb-4">لوحة تحكم الأدمن</h2>
+        {renderCurrentView()}
+      </main>
+      <BottomNavBar<AdminView> items={navItems} activeView={view} setView={setView} />
+    </div>
   );
 };
 
 export default AdminDashboard;
-    
-
     

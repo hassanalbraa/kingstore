@@ -18,10 +18,13 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { createUserWithEmailAndPassword, updatePassword, signInWithEmailAndPassword } from 'firebase/auth';
 
-type View = 'login' | 'register' | 'user_dashboard' | 'admin_dashboard' | 'settings';
+type AuthView = 'login' | 'register';
+type AppView = 'user_dashboard' | 'admin_dashboard' | 'settings';
 
 export default function Home() {
-  const [view, setView] = useState<View>('login');
+  const [authView, setAuthView] = useState<AuthView>('login');
+  const [appView, setAppView] = useState<AppView | null>(null);
+
   const { toast } = useToast();
   const auth = useAuth();
   const firestore = useFirestore();
@@ -34,19 +37,15 @@ export default function Home() {
 
   const { data: currentUser, isLoading: isUserDocLoading } = useDoc<User>(userDocRef);
 
-  // Simplified user document creation logic
   const createUserDocument = async (authUser: FirebaseAuthUser) => {
     if (!firestore) return;
     const userRef = doc(firestore, 'users', authUser.uid);
     const docSnap = await getDoc(userRef);
 
-    if (docSnap.exists()) {
-      return; // Document already exists
-    }
+    if (docSnap.exists()) return;
 
     try {
       const walletId = Math.floor(1000000 + Math.random() * 9000000).toString();
-      // Admin role is assigned if the email matches exactly 'admin@king.store'
       const userRole = authUser.email?.toLowerCase() === 'admin@king.store' ? 'admin' : 'user';
 
       const newUser: Omit<User, 'id'> = {
@@ -59,7 +58,6 @@ export default function Home() {
 
       await setDoc(userRef, newUser);
       
-      // If the user is an admin, also create a document in the roles_admin collection
       if (userRole === 'admin') {
         const adminRoleDocRef = doc(firestore, "roles_admin", authUser.uid);
         await setDoc(adminRoleDocRef, { email: authUser.email });
@@ -83,64 +81,49 @@ export default function Home() {
     }
   }, [firebaseUser, currentUser, isUserDocLoading]);
 
+  useEffect(() => {
+    if (!isUserLoading && currentUser) {
+      if (appView !== 'settings') {
+         setAppView(currentUser.role === 'admin' ? 'admin_dashboard' : 'user_dashboard');
+      }
+    } else if (!isUserLoading && !firebaseUser) {
+        setAppView(null);
+    }
+  }, [currentUser, isUserLoading, firebaseUser, appView]);
+
 
   const handleLogin = async (email: string, password: string): Promise<boolean> => {
     if (!auth) {
-        toast({
-            variant: "destructive",
-            title: "خطأ",
-            description: "خدمات Firebase غير متاحة حاليًا."
-        });
+        toast({ variant: "destructive", title: "خطأ", description: "خدمات Firebase غير متاحة حاليًا." });
         return false;
     }
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // The useEffect hook will handle user document creation on successful login
-      toast({
-        title: "تم تسجيل الدخول بنجاح",
-        description: `أهلاً بك!`,
-      });
+      toast({ title: "تم تسجيل الدخول بنجاح", description: `أهلاً بك!` });
       return true;
     } catch (error: any) {
-       toast({
-        variant: "destructive",
-        title: "فشل تسجيل الدخول",
-        description: "البريد الإلكتروني أو كلمة المرور غير صحيحة.",
-      });
+       toast({ variant: "destructive", title: "فشل تسجيل الدخول", description: "البريد الإلكتروني أو كلمة المرور غير صحيحة." });
       return false;
     }
   };
   
   const handleRegister = async (username: string, email: string, password: string): Promise<boolean> => {
     if (!auth) {
-        toast({
-            variant: "destructive",
-            title: "خطأ",
-            description: "خدمات Firebase غير متاحة حاليًا."
-        });
+        toast({ variant: "destructive", title: "خطأ", description: "خدمات Firebase غير متاحة حاليًا." });
         return false;
     }
-    
     try {
-        // The onAuthStateChanged listener will automatically pick up the new user,
-        // and the useEffect will trigger to create their document.
         await createUserWithEmailAndPassword(auth, email, password);
         toast({ title: 'نجاح', description: 'تم إنشاء حسابك وتسجيل دخولك تلقائيًا!' });
-        // The view will change automatically via the user state listener
         return true;
-
     } catch (error: any) {
-        console.error("Registration Error:", error);
-        
         let description = "حدث خطأ غير متوقع أثناء إنشاء الحساب.";
         if (error.code === 'auth/email-already-in-use') {
             description = "هذا البريد الإلكتروني مستخدم بالفعل. الرجاء استخدام بريد آخر.";
         } else if (error.code === 'auth/weak-password') {
             description = "كلمة المرور ضعيفة جدًا. يجب أن تتكون من 6 أحرف على الأقل.";
         }
-        
         toast({ variant: "destructive", title: "خطأ في إنشاء الحساب", description });
-
         return false;
     }
   };
@@ -161,59 +144,54 @@ export default function Home() {
 
   const handleLogout = () => {
     if(auth) auth.signOut();
-    setView('login');
+    setAppView(null);
+    setAuthView('login');
   };
 
   const handleGoToSettings = () => {
-    setView('settings');
+    setAppView('settings');
   };
-  
-  const handleSwitchView = (newView: View) => {
-    setView(newView);
-  }
 
   const handleBackToDashboard = () => {
-    // Rely on the currentUser state to determine the correct dashboard
-    if (currentUser?.role === 'admin') {
-      setView('admin_dashboard');
-    } else {
-      setView('user_dashboard');
-    }
+    setAppView(currentUser?.role === 'admin' ? 'admin_dashboard' : 'user_dashboard');
   };
   
-  const renderView = () => {
+  const renderContent = () => {
     if (isUserLoading || (firebaseUser && isUserDocLoading)) {
-      return <div className="flex justify-center items-center p-10"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
+      return <main className="flex-grow flex items-center justify-center p-4"><Loader2 className="h-12 w-12 animate-spin text-primary" /></main>;
     }
     
-    if (firebaseUser && currentUser) {
-       if (view === 'settings') {
-         return <SettingsPage onBack={handleBackToDashboard} onChangePassword={handleChangePassword}/>;
+    if (appView && currentUser) {
+       switch (appView) {
+          case 'settings':
+            return <main className="flex-grow flex items-center justify-center p-4"><Card className="w-full max-w-lg"><SettingsPage onBack={handleBackToDashboard} onChangePassword={handleChangePassword}/></Card></main>;
+          case 'admin_dashboard':
+            return <AdminDashboard onLogout={handleLogout} />;
+          case 'user_dashboard':
+            return <UserDashboard user={currentUser} onLogout={handleLogout} onGoToSettings={handleGoToSettings} />;
+          default:
+            return null;
        }
-       if (currentUser.role === 'admin') {
-         return <AdminDashboard onLogout={handleLogout} />
-       }
-       return <UserDashboard user={currentUser} onLogout={handleLogout} onGoToSettings={handleGoToSettings} />;
     }
 
-    // If no user, show login or register.
-    switch (view) {
-      case 'register':
-        return <RegisterForm onRegister={handleRegister} onSwitchToLogin={() => handleSwitchView('login')} />;
-      case 'login':
-      default:
-        return <LoginForm onLogin={handleLogin} onSwitchToRegister={() => handleSwitchView('register')} />;
-    }
+    // Auth forms
+    return (
+       <main className="flex-grow flex items-center justify-center p-4">
+        <Card className="w-full max-w-lg mx-auto shadow-2xl rounded-2xl overflow-hidden min-h-[300px]">
+          {authView === 'login' ? (
+            <LoginForm onLogin={handleLogin} onSwitchToRegister={() => setAuthView('register')} />
+          ) : (
+            <RegisterForm onRegister={handleRegister} onSwitchToLogin={() => setAuthView('login')} />
+          )}
+        </Card>
+      </main>
+    )
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <>
       <AppHeader />
-      <main className="flex-grow flex items-center justify-center p-4">
-        <Card className="w-full max-w-lg mx-auto shadow-2xl rounded-2xl overflow-hidden min-h-[300px]">
-          {renderView()}
-        </Card>
-      </main>
-    </div>
+      {renderContent()}
+    </>
   );
 }
