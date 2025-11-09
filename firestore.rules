@@ -13,8 +13,11 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get, update: if isOwner(userId) || isAdmin();
+      // Admins can list all users. Users cannot.
       allow list: if isAdmin(); 
+      // A user can create their own document.
       allow create: if isOwner(userId);
+      // Only admins can delete user documents.
       allow delete: if isAdmin();
 
       // This rule allows a user to read and write to their own userGameOffers subcollection
@@ -24,11 +27,14 @@ service cloud.firestore {
     }
 
     match /gameOffers/{gameOfferId} {
-      allow get, list: if true;
+      // Any authenticated user can see the offers.
+      allow get, list: if request.auth != null;
+      // Only admins can modify offers.
       allow create, update, delete: if isAdmin();
     }
     
     // This rule allows an admin to query across all userGameOffers collections
+    // to find pending orders. A composite index is required for this query.
     match /{path=**}/userGameOffers/{userGameOfferId} {
        allow get, list, update: if isAdmin();
        // Deleting orders is disallowed for auditing purposes
@@ -36,9 +42,14 @@ service cloud.firestore {
     }
 
      match /roles_admin/{userId} {
-       allow get: if true;
+       // Allow anyone to check for admin existence, but not list them.
+       allow get: if request.auth != null;
+       // Only other admins can manage the admin list.
        allow list, create, delete: if isAdmin();
+       // Role documents are immutable once created.
        allow update: if false;
      }
   }
 }
+
+    

@@ -33,17 +33,24 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
   const { user: adminUser } = useUser();
   const { toast } = useToast();
 
+  // Fetch ALL users, we will filter out the admin on the client-side.
+  // This avoids complex queries that require indexes and permission issues.
   const usersQuery = useMemoFirebase(() => {
     if (firestore && adminUser?.role === 'admin') {
-        return query(collection(firestore, 'users'), where('role', '==', 'user'));
+        return collection(firestore, 'users');
     }
     return null;
   }, [firestore, adminUser]);
-  const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
+  const { data: allUsers, isLoading: usersLoading } = useCollection<User>(usersQuery);
+  
+  // Client side filtering for display
+  const displayUsers = useMemo(() => allUsers?.filter(u => u.role === 'user'), [allUsers]);
 
   const offersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'gameOffers') : null, [firestore]);
   const { data: offers, isLoading: offersLoading, error: offersError } = useCollection<Offer>(offersQuery);
 
+  // Return to the more efficient collectionGroup query, as the security rules now support it.
+  // A composite index will be required. Firebase will provide a link in the console to create it.
   const pendingOrdersQuery = useMemoFirebase(() => {
     if (firestore && adminUser?.role === 'admin') {
       return query(
@@ -427,7 +434,7 @@ const renderOrdersContent = () => {
                   {usersLoading ? (
                     <TableRow><TableCell colSpan={3} className="text-center"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
                   ) : (
-                    users?.map((user) => (
+                    displayUsers?.map((user) => (
                       <TableRow key={user.id}>
                         <TableCell className="font-medium">{user.username}</TableCell>
                          <TableCell>
