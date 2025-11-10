@@ -2,7 +2,6 @@
 "use client";
 
 import { Card, CardContent } from '@/components/ui/card';
-import { Gamepad2 } from 'lucide-react';
 import React from 'react';
 import ImageWithFallback from '../ui/ImageWithFallback';
 
@@ -27,23 +26,21 @@ const GameCard = ({ gameName, onClick }: GameCardProps) => {
 
   const imageSrc = `/${imageName}`;
 
-  const fallback = <Gamepad2 className="h-12 w-12 text-primary mb-4 transition-transform group-hover:scale-110" />;
-
   return (
     <Card 
       onClick={onClick}
-      className="bg-secondary border-2 border-transparent hover:border-primary transition-all duration-300 cursor-pointer group overflow-hidden"
+      className="relative border-2 border-transparent hover:border-primary transition-all duration-300 cursor-pointer group overflow-hidden aspect-square flex items-center justify-center"
     >
-      <CardContent className="p-6 flex flex-col items-center justify-center text-center h-full">
-        <ImageWithFallback
-            src={imageSrc}
-            alt={`${gameName} icon`}
-            width={60}
-            height={60}
-            className="mb-4 transition-transform group-hover:scale-110 object-contain"
-            fallbackSrc="/gamepad2.png" // A default image icon in public folder
-        />
-        <h3 className="text-lg font-bold text-secondary-foreground">{gameName}</h3>
+      <ImageWithFallback
+          src={imageSrc}
+          alt={`${gameName} background`}
+          fill
+          className="object-cover transition-transform duration-300 group-hover:scale-110"
+          fallbackSrc="/gamepad2.png" 
+      />
+      <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition-colors duration-300"></div>
+      <CardContent className="p-2 flex flex-col items-center justify-center text-center h-full z-10">
+        <h3 className="text-lg font-bold text-white drop-shadow-md">{gameName}</h3>
       </CardContent>
     </Card>
   );
