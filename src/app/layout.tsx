@@ -2,6 +2,7 @@ import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { FirebaseClientProvider } from '@/firebase';
+import TawkTo from '@/components/TawkTo';
 
 export const metadata: Metadata = {
   title: 'KING STORE',
@@ -27,6 +28,7 @@ export default function RootLayout({
           </div>
         </FirebaseClientProvider>
         <Toaster />
+        <TawkTo propertyId="66c5222b9d7ed35917036329" widgetId="1i5s791nk" />
       </body>
     </html>
   );
