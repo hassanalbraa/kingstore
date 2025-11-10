@@ -38,7 +38,7 @@ const GameCard = ({ gameName, onClick }: GameCardProps) => {
           className="object-cover transition-transform duration-300 group-hover:scale-110"
           fallbackSrc="/gamepad2.png" 
       />
-      <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition-colors duration-300"></div>
+      {/* The overlay div has been removed to hide the shadow */}
       <CardContent className="p-0 flex flex-col items-center justify-center text-center h-full z-10">
         {/* The game name has been removed as requested */}
       </CardContent>
