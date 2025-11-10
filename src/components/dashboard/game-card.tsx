@@ -13,13 +13,19 @@ interface GameCardProps {
 
 const GameCard = ({ gameName, onClick }: GameCardProps) => {
 
-  // Generate a URL-friendly name for the image file
-  const imageName = gameName.toLowerCase()
-    .replace(/\s+\/\s+/g, '-') // Replace " / " with "-"
-    .replace(/\s+/g, '-')       // Replace spaces with "-"
-    .replace(/[^a-z0-9-]/g, ''); // Remove special characters
+  const customImageMapping: { [key: string]: string } = {
+    'Free Fire': 'fire.png',
+    // Add other custom mappings here, e.g., 'PUBG': 'pubg-logo.png'
+  };
 
-  const imageSrc = `/${imageName}.png`;
+  const imageName = customImageMapping[gameName]
+    ? customImageMapping[gameName]
+    : gameName.toLowerCase()
+        .replace(/\s+\/\s+/g, '-') // Replace " / " with "-"
+        .replace(/\s+/g, '-')       // Replace spaces with "-"
+        .replace(/[^a-z0-9-]/g, '') + '.png'; // Remove special characters and add extension
+
+  const imageSrc = `/${imageName}`;
 
   const fallback = <Gamepad2 className="h-12 w-12 text-primary mb-4 transition-transform group-hover:scale-110" />;
 
