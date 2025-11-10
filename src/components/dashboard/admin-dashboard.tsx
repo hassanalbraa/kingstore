@@ -5,12 +5,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import type { User, Offer, UserGameOffer, WithId, Transaction } from '@/lib/types';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, useUser, useDoc } from '@/firebase';
-import { collection, doc, getDocs, query, where, runTransaction, updateDoc, collectionGroup, addDoc, writeBatch, orderBy } from 'firebase/firestore';
+import { collection, doc, getDocs, query, where, runTransaction, updateDoc, collectionGroup, addDoc, writeBatch, orderBy, setDoc, deleteDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Edit, Save, XCircle, Loader2, PlusCircle, Copy, Database, Gift, Search, ArrowRight, CheckCircle, RefreshCw, Check, ArrowUp, ArrowDown } from 'lucide-react';
+import { Edit, Save, XCircle, Loader2, PlusCircle, Copy, Database, Gift, Search, ArrowRight, CheckCircle, RefreshCw, Check, ArrowUp, ArrowDown, Shield, UserCog } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { seedGameOffers } from '@/lib/seed';
 import { Combobox } from '@/components/ui/combobox';
@@ -54,7 +54,7 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
     return null;
   }, [firestore, isCurrentUserAdmin]);
   const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
-  const displayUsers = useMemo(() => users?.filter(u => u.role === 'user'), [users]);
+  const displayUsers = useMemo(() => users, [users]);
 
 
   const offersQuery = useMemoFirebase(() => {
@@ -345,6 +345,41 @@ const handleMoveOffer = async (currentIndex: number, direction: 'up' | 'down') =
 };
 
 
+const handleChangeUserRole = async (userToUpdate: User, newRole: 'admin' | 'user') => {
+  if (!firestore) return;
+
+  const userRef = doc(firestore, 'users', userToUpdate.id);
+  const adminRoleRef = doc(firestore, 'roles_admin', userToUpdate.id);
+
+  try {
+    const batch = writeBatch(firestore);
+    
+    // Update the 'role' field in the user document
+    batch.update(userRef, { role: newRole });
+
+    // Add or remove from the roles_admin collection
+    if (newRole === 'admin') {
+      batch.set(adminRoleRef, { email: userToUpdate.email });
+    } else {
+      batch.delete(adminRoleRef);
+    }
+
+    await batch.commit();
+    toast({
+      title: 'نجاح',
+      description: `تم تحديث صلاحية المستخدم ${userToUpdate.username} إلى ${newRole}.`,
+    });
+  } catch (error) {
+    console.error("Error changing user role:", error);
+    toast({
+      variant: 'destructive',
+      title: 'خطأ',
+      description: 'فشل تغيير صلاحية المستخدم.',
+    });
+  }
+};
+
+
 const getStatusBadge = (status: 'pending' | 'completed' | 'failed') => {
     switch (status) {
         case 'pending':
@@ -513,11 +548,13 @@ const renderOrdersContent = () => {
             <TableHead>اسم المستخدم</TableHead>
             <TableHead>رقم المحفظة</TableHead>
             <TableHead>الرصيد</TableHead>
+            <TableHead>الصلاحية</TableHead>
+            <TableHead className="text-left">إجراء</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {usersLoading ? (
-            <TableRow><TableCell colSpan={3} className="text-center"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
+            <TableRow><TableCell colSpan={5} className="text-center"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
           ) : (
             displayUsers?.map((user) => (
               <TableRow key={user.id}>
@@ -532,6 +569,24 @@ const renderOrdersContent = () => {
                 </TableCell>
                 <TableCell>
                   {`${user.balance} ج.س`}
+                </TableCell>
+                <TableCell>
+                   {user.role === 'admin' ? <Badge>أدمن</Badge> : <Badge variant="secondary">مستخدم</Badge>}
+                </TableCell>
+                 <TableCell className="text-left">
+                  {user.id !== authUser?.uid && ( // Prevent admin from changing their own role
+                    user.role === 'admin' ? (
+                      <Button variant="destructive" size="sm" onClick={() => handleChangeUserRole(user, 'user')}>
+                        <UserCog />
+                        إزالة الأدمن
+                      </Button>
+                    ) : (
+                      <Button variant="outline" size="sm" onClick={() => handleChangeUserRole(user, 'admin')}>
+                        <Shield />
+                        ترقية لأدمن
+                      </Button>
+                    )
+                  )}
                 </TableCell>
               </TableRow>
             ))
@@ -698,6 +753,8 @@ const renderOrdersContent = () => {
 };
 
 export default AdminDashboard;
+    
+
     
 
     
