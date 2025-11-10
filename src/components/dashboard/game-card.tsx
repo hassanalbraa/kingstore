@@ -14,7 +14,7 @@ interface GameCardProps {
 const GameCard = ({ gameName, onClick }: GameCardProps) => {
 
   const customImageMapping: { [key: string]: string } = {
-    'Free Fire': 'fire.png',
+    'Free Fire': 'free fire.png',
     // Add other custom mappings here, e.g., 'PUBG': 'pubg-logo.png'
   };
 
