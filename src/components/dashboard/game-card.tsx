@@ -39,8 +39,8 @@ const GameCard = ({ gameName, onClick }: GameCardProps) => {
           fallbackSrc="/gamepad2.png" 
       />
       <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition-colors duration-300"></div>
-      <CardContent className="p-2 flex flex-col items-center justify-center text-center h-full z-10">
-        <h3 className="text-lg font-bold text-white drop-shadow-md">{gameName}</h3>
+      <CardContent className="p-0 flex flex-col items-center justify-center text-center h-full z-10">
+        {/* The game name has been removed as requested */}
       </CardContent>
     </Card>
   );
