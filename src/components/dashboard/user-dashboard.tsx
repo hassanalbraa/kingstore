@@ -125,6 +125,14 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
     navigator.clipboard.writeText(walletId);
     toast({title: "تم النسخ!", description: "تم نسخ رقم محفظتك."})
   }
+  
+  const handleGameCardClick = (gameName: string) => {
+    if (gameName === 'تحويل رصيد') {
+        setShowCreditTransferDialog(true);
+    } else {
+        setSelectedGame(gameName);
+    }
+  };
 
   const handleSelectOffer = (offer: Offer) => {
     setSelectedOffer(offer);
@@ -439,16 +447,19 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
         </div>
       );
     }
+    
+    const allServices = [...gameNames, 'تحويل رصيد'];
+
 
     return (
       <div>
         <h3 className="text-xl font-semibold mb-4 text-center">اختر خدمة</h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {gameNames.map((gameName) => (
+            {allServices.map((gameName) => (
             <GameCard 
                 key={gameName} 
                 gameName={gameName} 
-                onClick={() => setSelectedGame(gameName)} 
+                onClick={() => handleGameCardClick(gameName)} 
             />
             ))}
              <Card 
@@ -458,15 +469,6 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
                 <CardContent className="p-6 flex flex-col items-center justify-center text-center h-full">
                     <CreditCard className="h-12 w-12 text-primary mb-4 transition-transform group-hover:scale-110" />
                     <h3 className="text-lg font-bold text-secondary-foreground">تغذية ماي كاشي</h3>
-                </CardContent>
-            </Card>
-            <Card 
-                onClick={() => setShowCreditTransferDialog(true)}
-                className="bg-secondary border-2 border-transparent hover:border-primary transition-all duration-300 cursor-pointer group overflow-hidden"
-            >
-                <CardContent className="p-6 flex flex-col items-center justify-center text-center h-full">
-                    <Smartphone className="h-12 w-12 text-primary mb-4 transition-transform group-hover:scale-110" />
-                    <h3 className="text-lg font-bold text-secondary-foreground">تحويل رصيد</h3>
                 </CardContent>
             </Card>
         </div>
@@ -793,6 +795,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
 export default UserDashboard;
 
     
+
 
 
 
