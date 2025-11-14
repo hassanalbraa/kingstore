@@ -127,11 +127,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
   }
   
   const handleGameCardClick = (gameName: string) => {
-    if (gameName === 'تحويل رصيد') {
-        setShowCreditTransferDialog(true);
-    } else {
-        setSelectedGame(gameName);
-    }
+    setSelectedGame(gameName);
   };
 
   const handleSelectOffer = (offer: Offer) => {
@@ -448,20 +444,26 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
       );
     }
     
-    const allServices = [...gameNames, 'تحويل رصيد'];
-
-
     return (
       <div>
         <h3 className="text-xl font-semibold mb-4 text-center">اختر خدمة</h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {allServices.map((gameName) => (
+            {gameNames.map((gameName) => (
             <GameCard 
                 key={gameName} 
                 gameName={gameName} 
                 onClick={() => handleGameCardClick(gameName)} 
             />
             ))}
+             <Card 
+                onClick={() => setShowCreditTransferDialog(true)}
+                className="bg-secondary border-2 border-transparent hover:border-primary transition-all duration-300 cursor-pointer group overflow-hidden"
+            >
+                <CardContent className="p-6 flex flex-col items-center justify-center text-center h-full">
+                    <Smartphone className="h-12 w-12 text-primary mb-4 transition-transform group-hover:scale-110" />
+                    <h3 className="text-lg font-bold text-secondary-foreground">تحويل رصيد</h3>
+                </CardContent>
+            </Card>
              <Card 
                 onClick={() => setShowMyKashiDialog(true)}
                 className="bg-secondary border-2 border-transparent hover:border-primary transition-all duration-300 cursor-pointer group overflow-hidden"
@@ -795,6 +797,7 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
 export default UserDashboard;
 
     
+
 
 
 

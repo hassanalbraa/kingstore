@@ -15,15 +15,13 @@ const GameCard = ({ gameName, onClick }: GameCardProps) => {
   const customImageMapping: { [key: string]: string } = {
     'Free Fire': 'free fire.png',
     'تصاريح فري فاير': 'تصاريح-فري-فاير.png',
-    // Add other custom mappings here, e.g., 'PUBG': 'pubg.png'
+    'عروض التيك توك': 'tiktok.png',
+    'عروض التجار / اكواد جارينا': 'garena.png',
   };
 
   const imageName = customImageMapping[gameName]
     ? customImageMapping[gameName]
-    : gameName.toLowerCase()
-        .replace(/\s+\/\s+/g, '-') // Replace " / " with "-"
-        .replace(/\s+/g, '-')       // Replace spaces with "-"
-        .replace(/[^a-z0-9-]/g, '') + '.png'; // Remove special characters and add extension
+    : gameName.toLowerCase().replace(/\s/g, '-') + '.png';
 
   const imageSrc = `/${imageName}`;
 
@@ -39,7 +37,6 @@ const GameCard = ({ gameName, onClick }: GameCardProps) => {
           className="object-cover transition-transform duration-300 group-hover:scale-110"
           fallbackSrc="/gamepad2.png" 
       />
-      {/* The overlay div has been removed to hide the shadow */}
       <CardContent className="p-0 flex flex-col items-center justify-center text-center h-full z-10">
         {/* The game name has been removed as requested */}
       </CardContent>
