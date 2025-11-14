@@ -13,15 +13,15 @@ export const initialOffers = [
   { gameName: 'Free Fire', offerName: '530 💎', price: 17000, unit: '💎' },
   { gameName: 'Free Fire', offerName: '1080 💎', price: 34000, unit: '💎' },
   { gameName: 'Free Fire', offerName: '2200 💎', price: 70000, unit: '💎' },
-  { gameName: 'Free Fire', offerName: 'عضوية أسبوعية', price: 8000, unit: '💎' },
-  { gameName: 'Free Fire', offerName: 'عضوية شهرية', price: 38500, unit: '💎' },
-  { gameName: 'Free Fire', offerName: 'باقة تصريح مستوى 6 (120💎)', price: 2000, unit: '' },
-  { gameName: 'Free Fire', offerName: 'باقة تصريح مستوى 10 (200💎)', price: 3200, unit: '' },
-  { gameName: 'Free Fire', offerName: 'باقة تصريح مستوى 15 (200💎)', price: 3200, unit: '' },
-  { gameName: 'Free Fire', offerName: 'باقة تصريح مستوى 20 (200💎)', price: 3200, unit: '' },
-  { gameName: 'Free Fire', offerName: 'باقة تصريح مستوى 25 (200💎)', price: 3200, unit: '' },
-  { gameName: 'Free Fire', offerName: 'باقة تصريح مستوى 30 (200💎)', price: 3200, unit: '' },
-  { gameName: 'Free Fire', offerName: 'باقة تصريح مستوى 35 (350💎)', price: 4500, unit: '' },
+  { gameName: 'تصاريح فري فاير', offerName: 'عضوية أسبوعية', price: 8000, unit: '💎' },
+  { gameName: 'تصاريح فري فاير', offerName: 'عضوية شهرية', price: 38500, unit: '💎' },
+  { gameName: 'تصاريح فري فاير', offerName: 'باقة تصريح مستوى 6 (120💎)', price: 2000, unit: '' },
+  { gameName: 'تصاريح فري فاير', offerName: 'باقة تصريح مستوى 10 (200💎)', price: 3200, unit: '' },
+  { gameName: 'تصاريح فري فاير', offerName: 'باقة تصريح مستوى 15 (200💎)', price: 3200, unit: '' },
+  { gameName: 'تصاريح فري فاير', offerName: 'باقة تصريح مستوى 20 (200💎)', price: 3200, unit: '' },
+  { gameName: 'تصاريح فري فاير', offerName: 'باقة تصريح مستوى 25 (200💎)', price: 3200, unit: '' },
+  { gameName: 'تصاريح فري فاير', offerName: 'باقة تصريح مستوى 30 (200💎)', price: 3200, unit: '' },
+  { gameName: 'تصاريح فري فاير', offerName: 'باقة تصريح مستوى 35 (350💎)', price: 4500, unit: '' },
   { gameName: 'عروض التجار / اكواد جارينا', offerName: '10$ جارينا', price: 33700, unit: '' },
   { gameName: 'عروض التجار / اكواد جارينا', offerName: '20$ جارينا', price: 33600, unit: '' },
   { gameName: 'عروض التجار / اكواد جارينا', offerName: '50$ جارينا', price: 33300, unit: '' },

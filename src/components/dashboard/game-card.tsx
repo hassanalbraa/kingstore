@@ -14,7 +14,8 @@ const GameCard = ({ gameName, onClick }: GameCardProps) => {
 
   const customImageMapping: { [key: string]: string } = {
     'Free Fire': 'free fire.png',
-    // Add other custom mappings here, e.g., 'PUBG': 'pubg-logo.png'
+    'تصاريح فري فاير': 'تصاريح-فري-فاير.png',
+    // Add other custom mappings here, e.g., 'PUBG': 'pubg.png'
   };
 
   const imageName = customImageMapping[gameName]
