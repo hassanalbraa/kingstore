@@ -21,7 +21,7 @@ const GameCard = ({ gameName, onClick }: GameCardProps) => {
 
   const imageName = customImageMapping[gameName]
     ? customImageMapping[gameName]
-    : gameName.toLowerCase().replace(/[\s\/]/g, '-') + '.png';
+    : gameName.toLowerCase().replace(/[\s\/]+/g, '-') + '.png';
 
   const imageSrc = `/${imageName}`;
 
@@ -37,10 +37,7 @@ const GameCard = ({ gameName, onClick }: GameCardProps) => {
           className="object-cover transition-transform duration-300 group-hover:scale-110"
           fallbackSrc="/gamepad2.png" 
       />
-       <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition-colors duration-300" />
-      <CardContent className="p-0 flex flex-col items-center justify-center text-center h-full z-10">
-         <h3 className="text-xl font-bold text-white shadow-lg">{gameName}</h3>
-      </CardContent>
+      <CardContent className="p-0 flex flex-col items-center justify-center text-center h-full z-10" />
     </Card>
   );
 };
