@@ -28,17 +28,15 @@ const GameCard = ({ gameName, onClick }: GameCardProps) => {
   return (
     <Card 
       onClick={onClick}
-      className="relative border-2 border-transparent hover:border-primary transition-all duration-300 cursor-pointer group overflow-hidden aspect-square flex items-center justify-center"
+      className="relative border-2 border-transparent hover:border-primary transition-all duration-300 cursor-pointer group overflow-hidden aspect-square"
     >
-      <CardContent className="p-0 flex flex-col items-center justify-center text-center h-full w-full z-10">
-        <ImageWithFallback
-            src={imageSrc}
-            alt={`${gameName} background`}
-            fill
-            className="object-cover transition-transform duration-300 group-hover:scale-110"
-            fallbackSrc="/gamepad2.png" 
-        />
-      </CardContent>
+      <ImageWithFallback
+          src={imageSrc}
+          alt={`${gameName} background`}
+          fill
+          className="object-cover transition-transform duration-300 group-hover:scale-110"
+          fallbackSrc="/gamepad2.png" 
+      />
     </Card>
   );
 };

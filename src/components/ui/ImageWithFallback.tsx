@@ -12,36 +12,36 @@ interface ImageWithFallbackProps {
 
 const ImageWithFallback = ({ src, fallbackSrc, alt, ...props }: ImageWithFallbackProps) => {
   const [error, setError] = useState(false);
-  const [imgSrc, setImgSrc] = useState(src);
+  const [currentSrc, setCurrentSrc] = useState(src);
 
   useEffect(() => {
-    setImgSrc(src);
+    setCurrentSrc(src);
     setError(false); 
   }, [src]);
   
   const handleImageError = () => {
-    if (!error) {
-      if (fallbackSrc) {
-        setImgSrc(fallbackSrc);
-      }
+    if (!error) { // Prevent infinite loops
       setError(true);
+      if (fallbackSrc) {
+        setCurrentSrc(fallbackSrc);
+      }
     }
   };
   
-  if (error && !fallbackSrc) {
+  // If the primary and fallback have both failed, render a placeholder div
+  if (error && currentSrc === fallbackSrc) {
      return (
         <div 
-            className="rounded-full bg-background/20 flex items-center justify-center text-white font-bold"
-            style={{ width: props.width, height: props.height }}
+            className="flex items-center justify-center bg-muted text-muted-foreground w-full h-full"
         >
-            KS
+            <span className="font-bold text-lg">KS</span>
         </div>
      )
   }
 
   return (
     <Image
-      src={imgSrc}
+      src={currentSrc}
       alt={alt}
       onError={handleImageError}
       {...props}
