@@ -15,7 +15,7 @@ const GameCard = ({ gameName, onClick }: GameCardProps) => {
   const customImageMapping: { [key: string]: string } = {
     'Free Fire': 'free fire.png',
     'تصاريح فري فاير': 'تصاريح-فري-فاير.png',
-    'عروض التيك توك': 'toktik.png',
+    'عروض التيك توك': 'tiktok.png',
     'عروض التجار / اكواد جارينا': 'garena.png',
   };
 
