@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
@@ -47,9 +46,15 @@ interface UserDashboardProps {
   onGoToSettings: () => void;
 }
 
-const GAMES_REQUIRING_ID = ['PUBG', 'Free Fire', 'عروض التيك توك'];
+// ... (الجزء العلوي من الملف)
+
+// قم بتضمين 'تصاريح فري فاير' في هذه القائمة
+const GAMES_REQUIRING_ID = ['PUBG', 'Free Fire', 'عروض التيك توك', 'تصاريح فري فاير'];
 
 type UserView = 'home' | 'orders' | 'wallet' | 'account';
+
+// ... (بقية الكود دون تغيير)
+
 
 // My Kashi specific state
 interface MyKashiState {
@@ -604,9 +609,15 @@ const UserDashboard = ({ user, onLogout, onGoToSettings }: UserDashboardProps) =
            <Separator />
            <Button variant="outline" onClick={onGoToSettings} className="w-full">إعدادات الحساب (تغيير كلمة المرور)</Button>
            <Button asChild className="w-full" variant="outline">
-            <a href="https://wa.me/249994488276" target="_blank" rel="noopener noreferrer">
+            <a href="https://wa.me/+249924737300" target="_blank" rel="noopener noreferrer">
                 <MessageSquare className="ml-2"/>
                 الدعم الفني عبر واتساب
+            </a>
+          </Button>
+           <Button asChild className="w-full" variant="outline">
+            <a href="https://www.facebook.com/profile.php?id=61580352356187" target="_blank" rel="noopener noreferrer">
+                <MessageSquare className="ml-2"/>
+                الدعم الفني عبر فيسبوك
             </a>
           </Button>
            <Button onClick={onLogout} className="w-full">تسجيل الخروج</Button>
@@ -806,123 +817,4 @@ export default UserDashboard;
 
 
 
-           toast({
-                variant: "destructive",
-                title: "بيانات ناقصة",
-                description: "الرجاء إدخال ID اللاعب واسم الحساب.",
-            });
-            return;
-       }
-    }
 
-    setIsPurchaseLoading(true);
-
-    try {
-        const userRef = doc(firestore, 'users', user.id);
-
-        await runTransaction(firestore, async (transaction) => {
-            const userDoc = await transaction.get(userRef);
-            if (!userDoc.exists()) throw "المستخدم غير موجود!";
-            const currentBalance = userDoc.data().balance;
-            const newBalance = currentBalance - selectedOffer.price;
-            if (newBalance < 0) throw "رصيد غير كافٍ!";
-            transaction.update(userRef, { balance: newBalance });
-        });
-
-        const ordersCollectionRef = collection(firestore, 'users', user.id, 'userGameOffers');
-        const newPurchaseData: Omit<UserGameOffer, 'id'> = {
-            userId: user.id,
-            username: user.username,
-            walletId: user.walletId,
-            gameOfferId: selectedOffer.id,
-            gameName: selectedOffer.gameName,
-            offerName: selectedOffer.offerName,
-            price: selectedOffer.price,
-            status: "pending",
-            createdAt: new Date(),
-            ...(GAMES_REQUIRING_ID.includes(selectedOffer.gameName) && (selectedOffer.gameName === 'تصاريح فري فاير' ? {
-                gameId: freeFirePermitState.gameId,
-                gameUsername: freeFirePermitState.gameUsername
-            } : {
-                gameId: gameId,
-                gameUsername: gameUsername
-            }))
-        };
-        await addDoc(ordersCollectionRef, newPurchaseData);
-
-        toast({
-            title: "تمت عملية الشراء بنجاح!",
-            description: `لقد اشتريت ${selectedOffer.offerName}.`,
-        });
-
-    } catch (error: any) {
-        toast({
-            variant: "destructive",
-            title: "فشل الشراء",
-            description: error.toString() || "حدث خطأ أثناء الشراء.",
-        });
-    } finally {
-        setIsPurchaseLoading(false);
-        setSelectedOffer(null);
-        setShowGameIdDialog(false);
-        setShowFreeFirePermitDialog(false);
-        setGameId('');
-        setGameUsername('');
-        setFreeFirePermitState({ gameId: '', gameUsername: '' });
-    }
-  };
-
-  return (
-    <div className="flex flex-col h-full w-full">
-      <main className="flex-grow p-4 pb-24 overflow-y-auto">
-        {gameNames.map(game => (
-          <div key={game} className="mb-4">
-            <h2 className="text-xl font-semibold mb-2">{game}</h2>
-            <div className="flex gap-2 overflow-x-auto">
-              {groupedOffers[game].map(offer => (
-                <OfferCard key={offer.id} offer={offer} onClick={() => handleSelectOffer(offer)} />
-              ))}
-            </div>
-          </div>
-        ))}
-      </main>
-
-      {/* Dialog لتصاريح فري فاير */}
-      <Dialog open={showFreeFirePermitDialog} onOpenChange={(open) => {
-          if (!open) {
-              setShowFreeFirePermitDialog(false);
-              setSelectedOffer(null);
-              setFreeFirePermitState({ gameId: '', gameUsername: '' });
-          }
-      }}>
-        <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-                <DialogTitle>تصاريح فري فاير</DialogTitle>
-                <DialogDescription>أدخل ID اللاعب واسم الحساب التقريبي</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="ff-game-id" className="text-right">ID اللاعب</Label>
-                    <Input id="ff-game-id" value={freeFirePermitState.gameId} onChange={(e) => setFreeFirePermitState(s => ({ ...s, gameId: e.target.value }))} className="col-span-3" placeholder="أدخل ID حسابك" />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="ff-game-username" className="text-right">الاسم التقريبي</Label>
-                    <Input id="ff-game-username" value={freeFirePermitState.gameUsername} onChange={(e) => setFreeFirePermitState(s => ({ ...s, gameUsername: e.target.value }))} className="col-span-3" placeholder="أدخل اسم تقريبي" />
-                </div>
-                <Separator />
-                <div className="text-center">
-                    <p>شراء: <span className="font-semibold">{selectedOffer?.offerName}</span></p>
-                    <p>السعر: <span className="font-bold">{selectedOffer?.price || 0} ج.س</span></p>
-                </div>
-            </div>
-            <DialogFooter>
-                <Button variant="outline" onClick={() => setShowFreeFirePermitDialog(false)}>إلغاء</Button>
-                <Button onClick={handlePurchase} disabled={isPurchaseLoading}>{isPurchaseLoading ? <Loader2 className="animate-spin" /> : "تأكيد الشراء"}</Button>
-            </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-};
-
-export default UserDashboard;
