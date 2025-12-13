@@ -47,7 +47,7 @@ interface UserDashboardProps {
   onGoToSettings: () => void;
 }
 
-const GAMES_REQUIRING_ID = ['PUBG', 'Free Fire', 'عروض التيك توك', 'تصاريح-فري-فاير'];
+const GAMES_REQUIRING_ID = ['PUBG', 'Free Fire', 'عروض التيك توك', 'تصاريح فري فاير'];
 
 
 type UserView = 'home' | 'orders' | 'wallet' | 'account';
