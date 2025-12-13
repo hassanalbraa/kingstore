@@ -49,7 +49,7 @@ interface UserDashboardProps {
 // ... (الجزء العلوي من الملف)
 
 // قم بتضمين 'تصاريح فري فاير' في هذه القائمة
-const GAMES_REQUIRING_ID = ['PUBG', 'Free Fire', 'عروض التيك توك', 'تصاريح فري فاير'];
+const GAMES_REQUIRING_ID = ['PUBG', 'Free Fire', 'عروض التيك توك', 'تصاريح-فري-فاير '];
 
 type UserView = 'home' | 'orders' | 'wallet' | 'account';
 
